@@ -227,7 +227,7 @@ function finish_install() {
 
 function clean_install() {
   chmod +x /root/libernet/bin/*
-  rm -rf /root/Downloads
+  rm -rf ~/Downloads
   rm -rf /root/install.sh
   sleep 5
   reboot
