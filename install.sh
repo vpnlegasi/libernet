@@ -15,8 +15,8 @@ LIBERNET_TMP="${DOWNLOADS_DIR}/libernet"
 REPOSITORY_URL="https://github.com/vpnlegasi/libernet"
 
 function version_lt() {
-  # true if $1 < $2 (version compare)
-  [ "$(printf '%s\n%s' "$1" "$2" | sort -V | head -n1)" != "$2" ]
+  [ "$1" = "$2" ] && return 1
+  [ "$(printf '%s\n' "$1" "$2" | sort -V | head -n1)" != "$2" ]
 }
 
 function fixes_os() {
@@ -90,7 +90,7 @@ src/gz openwrt_telephony https://downloads.openwrt.org/releases/${ver}/packages/
 EOF
 }
 
-install_packages() {
+function install_packages() {
   echo "Updating package lists (optional)..."
   packages=(
     bash
@@ -117,7 +117,7 @@ install_packages() {
 
   for pkg in "${packages[@]}"; do
     echo "Checking ${pkg} ..."
-    if opkg list-installed "${pkg}" 2>/dev/null | grep -q "${pkg}"; then
+    if opkg list-installed "${pkg}" 2>/dev/null | grep -q "^${pkg} -"; then
       echo "  ${pkg} already installed, skipping."
       continue
     fi
@@ -131,7 +131,8 @@ install_packages() {
         break
       else
         echo "  Failed to install ${pkg} on attempt $attempt, running fixes..."
-        fixes_os >/dev/null 2>&1
+        fixes_os
+        rm -rf /tmp/opkg-lists/*
         opkg update >/dev/null 2>&1
       fi
     done
@@ -141,20 +142,34 @@ install_packages() {
       continue
     fi
 
+    # --- Special handling for curl ---
     if [ "${pkg}" = "curl" ]; then
       echo "  Testing curl version..."
       if ! curl -V >/dev/null 2>&1; then
-        echo "  curl test failed, attempting repair..."
+        echo "  curl test failed — attempting full repair..."
         for attempt in 1 2 3; do
           echo "  Repairing curl (attempt $attempt of 3)..."
-          fixes_os >/dev/null 2>&1
-          opkg remove curl --force-depends >/dev/null 2>&1
-          opkg install curl libcurl4 ca-certificates >/dev/null 2>&1
+          fixes_os
+          rm -rf /tmp/opkg-lists/*
+          opkg update >/dev/null 2>&1
+          opkg remove curl libcurl4 --force-depends >/dev/null 2>&1
+          opkg install libcurl4 curl ca-certificates >/dev/null 2>&1
+
+          # Verify both curl + libcurl4 versions match
+          curl_ver=$(opkg info curl 2>/dev/null | grep Version | awk '{print $2}')
+          libcurl_ver=$(opkg info libcurl4 2>/dev/null | grep Version | awk '{print $2}')
+          echo "    curl version: ${curl_ver}"
+          echo "    libcurl4 version: ${libcurl_ver}"
+
           if curl -V >/dev/null 2>&1; then
             echo "  curl repaired successfully."
+            success=1
             break
+          else
+            echo "  curl still not working, retrying..."
           fi
         done
+
         if ! curl -V >/dev/null 2>&1; then
           echo "  Warning: curl still not functional after repair attempts."
         fi
@@ -165,7 +180,7 @@ install_packages() {
   done
 }
 
-install_proprietary_binaries() {
+function install_proprietary_binaries() {
   echo -e "Installing proprietary binaries"
   bins=(
     badvpn-tun2socks
@@ -195,7 +210,7 @@ install_proprietary_binaries() {
 }
 
 
-install_proprietary_packages() {
+function install_proprietary_packages() {
   echo -e "Installing proprietary packages"
   packages=(
     v2ray
