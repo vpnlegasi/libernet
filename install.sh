@@ -264,22 +264,43 @@ function install_libernet() {
     echo -e "Stopping Libernet"
     "${LIBERNET_DIR}/bin/service.sh" -ds > /dev/null 2>&1
   fi
-  # removing directories that might contains garbage
   rm -rf "${LIBERNET_WWW}"
-  # install Libernet
   echo -e "Installing Libernet" \
     && mkdir -p "${LIBERNET_DIR}" \
     && echo -e "Copying binary" \
     && cp -arvf bin "${LIBERNET_DIR}/" \
     && echo -e "Copying system" \
     && cp -arvf system "${LIBERNET_DIR}/" \
-    && echo -e "Copying log" \
-    && cp -arvf log "${LIBERNET_DIR}/" \
     && echo -e "Copying web files" \
     && mkdir -p "${LIBERNET_WWW}" \
     && cp -arvf web/* "${LIBERNET_WWW}/" \
     && echo -e "Configuring Libernet" \
     && sed -i "s/LIBERNET_DIR/$(echo ${LIBERNET_DIR} | sed 's/\//\\\//g')/g" "${LIBERNET_WWW}/config.inc.php"
+}
+
+function fix_web() {
+  folders=(
+    "${LIBERNET_DIR}/log"
+    "${LIBERNET_DIR}/bin/config/openvpn"
+    "${LIBERNET_DIR}/bin/config/shadowsocks"
+    "${LIBERNET_DIR}/bin/config/ssh"
+    "${LIBERNET_DIR}/bin/config/ssh_ssl"
+    "${LIBERNET_DIR}/bin/config/ssh_ws_cdn"
+    "${LIBERNET_DIR}/bin/config/stunnel"
+    "${LIBERNET_DIR}/bin/config/trojan"
+    "${LIBERNET_DIR}/bin/config/v2ray"
+  )
+
+  for dir in "${folders[@]}"; do
+    mkdir -p "$dir"
+    cat <<EOF > "${dir}/.gitignore"
+# Ignore everything in this directory
+*
+# Except this file
+!.gitignore
+EOF
+    echo "Created ${dir}/.gitignore"
+  done
 }
 
 function configure_vpnlegasi_firewall() {
