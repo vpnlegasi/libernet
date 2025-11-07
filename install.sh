@@ -258,26 +258,6 @@ function add_libernet_environment() {
   fi
 }
 
-function install_libernet() {
-  # stop Libernet before install
-  if [[ -f "${LIBERNET_DIR}/bin/service.sh" && $(cat "${STATUS_LOG}") != "0" ]]; then
-    echo -e "Stopping Libernet"
-    "${LIBERNET_DIR}/bin/service.sh" -ds > /dev/null 2>&1
-  fi
-  rm -rf "${LIBERNET_WWW}"
-  echo -e "Installing Libernet" \
-    && mkdir -p "${LIBERNET_DIR}" \
-    && echo -e "Copying binary" \
-    && cp -arvf bin "${LIBERNET_DIR}/" \
-    && echo -e "Copying system" \
-    && cp -arvf system "${LIBERNET_DIR}/" \
-    && echo -e "Copying web files" \
-    && mkdir -p "${LIBERNET_WWW}" \
-    && cp -arvf web/* "${LIBERNET_WWW}/" \
-    && echo -e "Configuring Libernet" \
-    && sed -i "s/LIBERNET_DIR/$(echo ${LIBERNET_DIR} | sed 's/\//\\\//g')/g" "${LIBERNET_WWW}/config.inc.php"
-}
-
 function fix_web() {
   folders=(
     "${LIBERNET_DIR}/log"
@@ -301,6 +281,27 @@ function fix_web() {
 EOF
     echo "Created ${dir}/.gitignore"
   done
+}
+
+function install_libernet() {
+  # stop Libernet before install
+  if [[ -f "${LIBERNET_DIR}/bin/service.sh" && $(cat "${STATUS_LOG}") != "0" ]]; then
+    echo -e "Stopping Libernet"
+    "${LIBERNET_DIR}/bin/service.sh" -ds > /dev/null 2>&1
+  fi
+  rm -rf "${LIBERNET_WWW}"
+  echo -e "Installing Libernet" \
+    && mkdir -p "${LIBERNET_DIR}" \
+    && echo -e "Copying binary" \
+    && cp -arvf bin "${LIBERNET_DIR}/" \
+    && echo -e "Copying system" \
+    && cp -arvf system "${LIBERNET_DIR}/" \
+    && echo -e "Copying web files" \
+    && fix_web \
+    && mkdir -p "${LIBERNET_WWW}" \
+    && cp -arvf web/* "${LIBERNET_WWW}/" \
+    && echo -e "Configuring Libernet" \
+    && sed -i "s/LIBERNET_DIR/$(echo ${LIBERNET_DIR} | sed 's/\//\\\//g')/g" "${LIBERNET_WWW}/config.inc.php"
 }
 
 function configure_vpnlegasi_firewall() {
