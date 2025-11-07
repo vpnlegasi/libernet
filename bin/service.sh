@@ -44,7 +44,7 @@ function check_connection() {
         sleep 60
         retry_done=true
         counter=0
-        continue
+        continue  # ulang balik loop, bukan exit
       else
         "${LIBERNET_DIR}/bin/log.sh" -w "<span style=\"color: gray\">All reconnection attempts failed, stopping service.</span>"
         echo -e "All reconnection attempts failed, stopping service."

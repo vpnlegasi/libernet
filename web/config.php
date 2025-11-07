@@ -1,7 +1,4 @@
-<?php
-    include('auth.php');
-    check_session();
-?>
+
 <!doctype html>
 <html lang="en">
 <head>
@@ -401,7 +398,7 @@
                                     <div class="col-md-12">
                                         <div class="form-group">
                                             <label>Payload</label>
-                                            <textarea class="form-control" v-model="config.temp.modes[6].profile.http.payload" rows="5" placeholder="CONNECT wss://libernet.tld/ HTTP/1.1[crlf]Host: [host_port] HTTP/1.1[crlf]Upgrade: websocket[crlf]Connection: keep-alive[crlf][crlf]" required></textarea>
+                                            <textarea class="form-control" v-model="config.temp.modes[6].profile.http.payload" rows="5" placeholder="CONNECT / HTTP/1.1[crlf]Host: [host_port] HTTP/1.1[crlf]Upgrade: websocket[crlf]Connection: keep-alive[crlf][crlf]" required></textarea>
                                         </div>
                                     </div>
                                 </div>

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Libernet Service Wrapper
+# SSH-WS-CDN Connector Wrapper
 # Modded By Vpn Legasi
 
 if [ "$(id -u)" != "0" ]; then

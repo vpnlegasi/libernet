@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
-# Libernet Service Wrapper
+# HTTP Injector for Python3
 # Modded By Vpn Legasi
- credit: https://github.com/mientz/python-http-injector
+# credit: https://github.com/mientz/python-http-injector
 
 import socket
 import select

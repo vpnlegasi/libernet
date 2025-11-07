@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Libernet Service Wrapper
+# DNS Wrapper
 # Modded By Vpn Legasi
 
 if [ "$(id -u)" != "0" ]; then

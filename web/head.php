@@ -9,4 +9,4 @@
 <!-- Main CSS -->
 <link rel="stylesheet" href="css/style.css">
 
-<title>Modded By Vpn Legasi | <?= $title ?></title>
+<title>Vpn Legasi | <?= $title ?></title>

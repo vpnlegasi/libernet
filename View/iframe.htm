@@ -1,0 +1,19 @@
+<%#
+    Template untuk memaparkan Libernet di dalam iframe
+    Laluan: /usr/lib/lua/luci/view/libernet/iframe.htm
+%>
+
+<%+header%>
+
+<h2 name="content"><%=translate("Libernet Web Interface")%></h2>
+<div id="libernet_container" style="width: 100%; height: 800px; border: none;">
+    <iframe 
+        id="libernet_iframe" 
+        src="http://192.168.1.1/libernet" 
+        style="width: 100%; height: 100%; border: none;" 
+        frameborder="0">
+        <p><%=translate("Your browser does not support iframes.")%></p>
+    </iframe>
+</div>
+
+<%+footer%>
