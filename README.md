@@ -6,7 +6,7 @@ opkg update && opkg install bash wget
 
 #Installation
 ```
-bash <(wget -qO- https://raw.githubusercontent.com/vpnlegasi/libernet/main/install.sh)
+wget -O - https://raw.githubusercontent.com/vpnlegasi/libernet/main/install.sh | sh
 ```
 
 #Log in info
