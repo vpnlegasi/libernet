@@ -132,7 +132,7 @@ function install_proprietary() {
 function install_prerequisites() {
   # update packages index
   opkg update
-  fixes_os > /dev/null 2>&1; then
+  fixes_os > /dev/null 2>&1
 }
 
 function install_requirements() {
