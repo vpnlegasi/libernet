@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# V2Ray Wrapper
+# Libernet Service Wrapper
 # Modded By Vpn Legasi
 
 if [ "$(id -u)" != "0" ]; then

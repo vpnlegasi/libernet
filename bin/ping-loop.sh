@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# PING Loop Wrapper
+# Libernet Service Wrapper
 # Modded By Vpn Legasi
 
 if [ "$(id -u)" != "0" ]; then
@@ -11,28 +11,10 @@ fi
 SERVICE_NAME="PING loop"
 SYSTEM_CONFIG="${LIBERNET_DIR}/system/config.json"
 INTERVAL="3"
-HOST="m.pubgmobile.com"
+HOST="bing.com"
 
 function http_ping() {
-  local hosts=(
-    "m.pubgmobile.com"
-    "www.google.com"
-    "www.bing.com"
-    "cdn.cloudflare.com"
-  )
-  local success=0
-  for h in "${hosts[@]}"; do
-    if httping -qi "${INTERVAL}" -t "${INTERVAL}" "$h" >/dev/null 2>&1; then
-      HOST="$h"
-      success=1
-      break
-    fi
-  done
-
-  # fallback Host
-  if [[ $success -eq 0 ]]; then
-    HOST="m.pubgmobile.com"
-  fi
+  httping -qi "${INTERVAL}" -t "${INTERVAL}" "${HOST}"
 }
 
 function loop() {

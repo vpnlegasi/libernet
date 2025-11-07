@@ -1,4 +1,7 @@
-
+<?php
+    include('auth.php');
+    check_session();
+?>
 <!doctype html>
 <html lang="en">
 <head>
@@ -40,7 +43,7 @@
                                 Some features still under development!
                             </p>
                             <p class="text-right m-0"><a href="https://t.me/vpnlegasi">Report bug</a></p>
-                            <p class="text-right m-0">Author: <a href="https://t.me/vpnlegasi"><i>Vpn Legasi</i></a></p>
+                            <p class="text-right m-0">Author: <a href="https://t.me/vpnlegasi"><i>VPN Legasi</i></a></p>
                         </div>
                         <div class="text-center">
                             <p v-if="status === 3" class="text-danger mt-0 mb-1">Update failed!</p>

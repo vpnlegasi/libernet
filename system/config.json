@@ -1,6 +1,6 @@
 {
     "tunnel": {
-        "autostart": true,
+        "autostart": false,
         "dns_resolver": false,
         "ping_loop": true,
         "mode": 0,

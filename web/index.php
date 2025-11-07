@@ -1,3 +1,7 @@
+<?php
+    include('auth.php');
+    check_session();
+?>
 <!doctype html>
 <html lang="en">
 <head>
