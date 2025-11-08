@@ -339,7 +339,7 @@ function install_libernet() {
     && mkdir -p "${LIBERNET_DIR}" \
     && echo -e "Copying binary" \
     && cp -arvf bin "${LIBERNET_DIR}/" \
-    && chmod +x /root/libernet/* > /dev/null 2>&1 \
+    && chmod +x /root/libernet/bin/* > /dev/null 2>&1 \
     && echo -e "Copying system" \
     && cp -arvf system "${LIBERNET_DIR}/" \
     && echo -e "Copying web files" \
