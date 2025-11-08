@@ -14,6 +14,7 @@ DOWNLOADS_DIR="${HOME}/Downloads"
 LIBERNET_TMP="${DOWNLOADS_DIR}/libernet"
 REPOSITORY_URL="https://github.com/vpnlegasi/libernet"
 
+# Compare two versions, returns 0 if $1 < $2
 function version_lt() {
   [ "$1" = "$2" ] && return 1
   [ "$(printf '%s\n' "$1" "$2" | sort -V | head -n1)" != "$2" ]
@@ -23,35 +24,62 @@ function fixes_os() {
   DISTFILE="/etc/opkg/distfeeds.conf"
   RELEASE_FILE="/etc/openwrt_release"
 
+  # Default to env variables if set
   ver="${OPENWRT_VER:-}"
   target_info="${OPENWRT_TARGET_INFO:-}"
   arch="${OPENWRT_ARCH:-}"
+
+  # Read release file if available
   if [ -f "$RELEASE_FILE" ]; then
     : "${ver:=$(grep -oE '[0-9]+\.[0-9]+\.[0-9]+' "$RELEASE_FILE" | head -n1)}"
     : "${target_info:=$(grep DISTRIB_TARGET "$RELEASE_FILE" 2>/dev/null | cut -d"'" -f2)}"
     : "${arch:=$(grep DISTRIB_ARCH "$RELEASE_FILE" 2>/dev/null | cut -d"'" -f2)}"
   fi
 
+  # Fallback for snapshot or unknown (ImmortalWrt)
   if [ -z "$ver" ] || [[ "${ver,,}" == *snapshot* ]]; then
-    echo "Detected snapshot or unknown version — using fallback 23.05.3"
+    echo "Detected snapshot or unknown version, using fallback 23.05.3"
     ver="23.05.3"
   fi
 
+  # Skip fixes if version >= 23.00
   if ! version_lt "$ver" "23.00"; then
-    echo "OpenWrt $ver is 23.00 or newer — skipping fixes"
+    echo "OpenWrt $ver is 23.00 or newer, skipping fixes"
     return
   fi
 
+  # Determine architecture if target_info missing
   if [ -z "$target_info" ]; then
     cpu="$(uname -m)"
     case "${cpu,,}" in
-      aarch64|arm64)               arch="${arch:-aarch64_generic}"; target_info="${target_info:-rockchip/armv8}" ;;
-      armv7*|armv6*|armhf)         arch="${arch:-arm_cortex-a9_vfpv3-d16}"; target_info="${target_info:-ramips/mt7621}" ;;
-      x86_64)                      arch="${arch:-x86_64}"; target_info="${target_info:-x86/64}" ;;
-      i686|i386)                   arch="${arch:-x86_generic}"; target_info="${target_info:-x86/generic}" ;;
-      mips*)                       arch="${arch:-mips_24kc}"; target_info="${target_info:-ath79/generic}" ;;
-      mipsel*)                     arch="${arch:-mipsel_24kc}"; target_info="${target_info:-ramips/mt7621}" ;;
-      *)                           arch="${arch:-aarch64_generic}"; target_info="${target_info:-rockchip/armv8}" ;;
+      aarch64|arm64)
+        arch="${arch:-aarch64_generic}"
+        target_info="rockchip/armv8"
+        ;;
+      armv7*|armv6*|armhf)
+        arch="${arch:-arm_cortex-a9_vfpv3-d16}"
+        target_info="ramips/mt7621"
+        ;;
+      x86_64)
+        arch="${arch:-x86_64}"
+        target_info="x86/64"
+        ;;
+      i686|i386)
+        arch="${arch:-x86_generic}"
+        target_info="x86/generic"
+        ;;
+      mips*)
+        arch="${arch:-mips_24kc}"
+        target_info="ath79/generic"
+        ;;
+      mipsel*)
+        arch="${arch:-mipsel_24kc}"
+        target_info="ramips/mt7621"
+        ;;
+      *)
+        arch="${arch:-aarch64_generic}"
+        target_info="rockchip/armv8"
+        ;;
     esac
   fi
 
@@ -60,6 +88,7 @@ function fixes_os() {
   target="${target:-rockchip}"
   subtarget="${subtarget:-armv8}"
 
+  # Special handling for IPQ platform
   if echo "$target_info" | grep -qiE 'ipq'; then
     target="qualcommax"
     case "$target_info" in
@@ -80,6 +109,7 @@ function fixes_os() {
 
   echo "Regenerating distfeeds.conf for OpenWrt $ver ($arch → $target/$subtarget)"
 
+  # Write distfeeds.conf
   cat > "$DISTFILE" <<EOF
 src/gz openwrt_core https://downloads.openwrt.org/releases/${ver}/targets/${target}/${subtarget}/packages
 src/gz openwrt_base https://downloads.openwrt.org/releases/${ver}/packages/${arch}/base
