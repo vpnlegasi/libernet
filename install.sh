@@ -360,7 +360,7 @@ function install_libernet() {
     && mkdir -p "${LIBERNET_DIR}" \
     && echo -e "Copying binary" \
     && cp -arvf bin "${LIBERNET_DIR}/" \
-    && chmod +x /root/libernet/bin/* > /dev/null 2>&1 \
+    && find "${LIBERNET_DIR}/bin" -type f -exec chmod +x {} \; > /dev/null 2>&1 \
     && echo -e "Copying system" \
     && cp -arvf system "${LIBERNET_DIR}/" \
     && echo -e "Copying web files" \
@@ -435,10 +435,10 @@ function finish_install() {
 function clean_install() {
   rm -rf /root/install.sh > /dev/null 2>&1
   rm -rf /root/Downloads > /dev/null 2>&1
-  chmod +x /root/libernet/* > /dev/null 2>&1
+  find /root/libernet/bin -type f -exec chmod +x {} \; > /dev/null 2>&1
   sleep 10
   echo -e "System will reboot in 10 sec"
-  reboot  
+  reboot
 }
 
 function main_installer() {
