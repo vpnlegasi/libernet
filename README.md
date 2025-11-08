@@ -1,12 +1,12 @@
 
 #First Run
 ```
-opkg update && opkg install curl bash wget
+opkg update && opkg install bash wget
 ```
 
 #Installation
 ```
-bash <(curl -fsSL https://raw.githubusercontent.com/vpnlegasi/libernet/main/install.sh)
+wget -O - https://raw.githubusercontent.com/vpnlegasi/libernet/main/install.sh | bash
 ```
 
 #Log in info
