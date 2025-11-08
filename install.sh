@@ -312,7 +312,7 @@ function install_libernet() {
     && echo -e "Copying system" \
     && cp -arvf system "${LIBERNET_DIR}/" \
     && echo -e "Copying web files" \
-    && fix_web \  >/dev/null 2>&1
+    && fix_web >/dev/null 2>&1 \
     && mkdir -p "${LIBERNET_WWW}" \
     && cp -arvf web/* "${LIBERNET_WWW}/" \
     && echo -e "Configuring Libernet" \
