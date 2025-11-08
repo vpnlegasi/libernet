@@ -91,37 +91,149 @@ EOF
 }
 
 function install_packages() {
-  while IFS= read -r line; do
-    # install package if not installed yet
-    if [[ $(opkg list-installed "${line}" | grep -c "${line}") != "1" ]]; then
-      opkg install "${line}"
+  echo "Updating package lists (optional)..."
+  packages=(
+    bash
+    curl
+    librt
+    libpthread
+    coreutils
+    coreutils-stdbuf
+    screen
+    jq
+    ip-full
+    kmod-tun
+    openssh-client
+    dnsmasq-full
+    stubby
+    php8
+    php8-cgi
+    php8-mod-session
+    python3
+    httping
+    stunnel
+    openvpn-openssl
+  )
+
+  for pkg in "${packages[@]}"; do
+    echo "Checking ${pkg} ..."
+    if opkg list-installed "${pkg}" 2>/dev/null | grep -q "^${pkg} -"; then
+      echo "  ${pkg} already installed, skipping."
+      continue
     fi
-  done < requirements.txt
+
+    success=0
+    for attempt in 1 2 3; do
+      echo "  Installing ${pkg} (attempt $attempt of 3)..."
+      if opkg install "${pkg}" >/dev/null 2>&1; then
+        echo "  Installed ${pkg}."
+        success=1
+        break
+      else
+        echo "  Failed to install ${pkg} on attempt $attempt, running fixes..."
+        fixes_os
+        rm -rf /tmp/opkg-lists/*
+        opkg update >/dev/null 2>&1
+      fi
+    done
+
+    if [ "$success" -eq 0 ]; then
+      echo "  Warning: failed to install ${pkg} after 3 attempts, skipping..."
+      continue
+    fi
+
+    # --- Special handling for curl ---
+    if [ "${pkg}" = "curl" ]; then
+      echo "  Testing curl version..."
+      if ! curl -V >/dev/null 2>&1; then
+        echo "  curl test failed — attempting full repair..."
+        for attempt in 1 2 3; do
+          echo "  Repairing curl (attempt $attempt of 3)..."
+          fixes_os
+          rm -rf /tmp/opkg-lists/*
+          opkg update >/dev/null 2>&1
+          opkg remove curl libcurl4 --force-depends >/dev/null 2>&1
+          opkg install libcurl4 curl ca-certificates >/dev/null 2>&1
+
+          # Verify both curl + libcurl4 versions match
+          curl_ver=$(opkg info curl 2>/dev/null | grep Version | awk '{print $2}')
+          libcurl_ver=$(opkg info libcurl4 2>/dev/null | grep Version | awk '{print $2}')
+          echo "    curl version: ${curl_ver}"
+          echo "    libcurl4 version: ${libcurl_ver}"
+
+          if curl -V >/dev/null 2>&1; then
+            echo "  curl repaired successfully."
+            success=1
+            break
+          else
+            echo "  curl still not working, retrying..."
+          fi
+        done
+
+        if ! curl -V >/dev/null 2>&1; then
+          echo "  Warning: curl still not functional after repair attempts."
+        fi
+      else
+        echo "  curl verified working."
+      fi
+    fi
+  done
 }
 
 function install_proprietary_binaries() {
   echo -e "Installing proprietary binaries"
-  while IFS= read -r line; do
-    if ! which ${line} > /dev/null 2>&1; then
+  bins=(
+    badvpn-tun2socks
+    ck-client
+    corkscrew
+    go-tun2socks
+    obfs-local
+    sshpass
+    trojan-go
+  )
+
+  for line in "${bins[@]}"; do
+    if ! command -v "${line}" >/dev/null 2>&1; then
       bin="/usr/bin/${line}"
-      echo "Installing ${line} ..."
-      curl -sLko "${bin}" "https://github.com/vpnlegasi/libernet-core/raw/main/${ARCH}/binaries/${line}"
-      chmod +x "${bin}"
+      echo "Installing ${line} to ${bin} ..."
+      if curl -fsSL -o "${bin}" "https://github.com/vpnlegasi/libernet-core/raw/main/${ARCH}/binaries/${line}"; then
+        chmod +x "${bin}"
+        echo "Installed ${line} successfully."
+      else
+        echo "Warning: failed to download ${line}, skipping..."
+        continue
+      fi
+    else
+      echo "${line} already installed, skipping."
     fi
-  done < binaries.txt
+  done
 }
+
 
 function install_proprietary_packages() {
   echo -e "Installing proprietary packages"
-  while IFS= read -r line; do
-    if ! which ${line} > /dev/null 2>&1; then
+  packages=(
+    v2ray
+  )
+
+  for line in "${packages[@]}"; do
+    if ! command -v "${line}" >/dev/null 2>&1; then
       pkg="/tmp/${line}.ipk"
       echo "Installing ${line} ..."
-      curl -sLko "${pkg}" "https://github.com/vpnlegasi/libernet-core/raw/main/${ARCH}/packages/${line}.ipk"
-      opkg install "${pkg}"
-      rm -rf "${pkg}"
+      if curl -fsSL -o "${pkg}" "https://github.com/vpnlegasi/libernet-core/raw/main/${ARCH}/packages/${line}.ipk"; then
+        if opkg install "${pkg}" >/dev/null 2>&1; then
+          echo "Installed ${line} successfully."
+        else
+          echo "Warning: failed to install ${line}, skipping..."
+        fi
+      else
+        echo "Warning: failed to download ${line}.ipk, skipping..."
+      fi
+      rm -f "${pkg}"
+    else
+      echo "${line} already installed, skipping."
     fi
-  done < packages.txt
+  done
 }
 
 function install_proprietary() {
@@ -132,7 +244,6 @@ function install_proprietary() {
 function install_prerequisites() {
   # update packages index
   opkg update
-  fixes_os > /dev/null 2>&1
 }
 
 function install_requirements() {
@@ -162,24 +273,46 @@ function add_libernet_environment() {
   fi
 }
 
+function fix_web() {
+  folders=(
+    "${LIBERNET_DIR}/log"
+    "${LIBERNET_DIR}/bin/config/openvpn"
+    "${LIBERNET_DIR}/bin/config/shadowsocks"
+    "${LIBERNET_DIR}/bin/config/ssh"
+    "${LIBERNET_DIR}/bin/config/ssh_ssl"
+    "${LIBERNET_DIR}/bin/config/ssh_ws_cdn"
+    "${LIBERNET_DIR}/bin/config/stunnel"
+    "${LIBERNET_DIR}/bin/config/trojan"
+    "${LIBERNET_DIR}/bin/config/v2ray"
+  )
+
+  for dir in "${folders[@]}"; do
+    mkdir -p "$dir"
+    cat <<EOF > "${dir}/.gitignore"
+# Ignore everything in this directory
+*
+# Except this file
+!.gitignore
+EOF
+    echo "Created ${dir}/.gitignore"
+  done
+}
+
 function install_libernet() {
   # stop Libernet before install
   if [[ -f "${LIBERNET_DIR}/bin/service.sh" && $(cat "${STATUS_LOG}") != "0" ]]; then
     echo -e "Stopping Libernet"
     "${LIBERNET_DIR}/bin/service.sh" -ds > /dev/null 2>&1
   fi
-  # removing directories that might contains garbage
   rm -rf "${LIBERNET_WWW}"
-  # install Libernet
   echo -e "Installing Libernet" \
     && mkdir -p "${LIBERNET_DIR}" \
     && echo -e "Copying binary" \
     && cp -arvf bin "${LIBERNET_DIR}/" \
     && echo -e "Copying system" \
     && cp -arvf system "${LIBERNET_DIR}/" \
-    && echo -e "Copying log" \
-    && cp -arvf log "${LIBERNET_DIR}/" \
     && echo -e "Copying web files" \
+    && fix_web \
     && mkdir -p "${LIBERNET_WWW}" \
     && cp -arvf web/* "${LIBERNET_WWW}/" \
     && echo -e "Configuring Libernet" \
@@ -243,10 +376,7 @@ function setup_system_logs() {
 function finish_install() {
   clear
   router_ip="$(ifconfig br-lan | grep 'inet addr:' | awk '{print $2}' | awk -F ':' '{print $2}')"
-  echo -e "Libernet successfully installed!"
-  echo -e "Libernet URL: http://${router_ip}/libernet"
-  echo -e "Username : admin"
-  echo -e "Password : vpnlegasi"
+  echo -e "Libernet successfully installed!\nLibernet URL: http://${router_ip}/libernet"
 }
 
 function clean_install() {
@@ -267,9 +397,6 @@ function main_installer() {
     && configure_libernet_service \
     && setup_system_logs \
     && finish_install \
-    && mkdir -p /usr/lib/lua/luci/view/libernet \
-    && mv "${LIBERNET_TMP}/View/libernet.lua" /usr/lib/lua/luci/controller/libernet.lua \
-    && mv "${LIBERNET_TMP}/View/iframe.htm" /usr/lib/lua/luci/view/libernet/iframe.htm \
     && clean_install
 }
 
