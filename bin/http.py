@@ -2,7 +2,7 @@
 
 # Libernet Service Wrapper
 # Modded By Vpn Legasi
- credit: https://github.com/mientz/python-http-injector
+# credit: https://github.com/mientz/python-http-injector
 
 import socket
 import select
