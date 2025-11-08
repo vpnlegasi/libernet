@@ -312,7 +312,7 @@ function install_libernet() {
     && echo -e "Copying system" \
     && cp -arvf system "${LIBERNET_DIR}/" \
     && echo -e "Copying web files" \
-    && fix_web \
+    && fix_web \  >/dev/null 2>&1
     && mkdir -p "${LIBERNET_WWW}" \
     && cp -arvf web/* "${LIBERNET_WWW}/" \
     && echo -e "Configuring Libernet" \
@@ -382,7 +382,7 @@ function finish_install() {
 function clean_install() {
   rm -rf /root/install.sh > /dev/null 2>&1
   rm -rf /root/Downloads > /dev/null 2>&1
-  chmod +x /root/libernet/bin* > /dev/null 2>&1
+  chmod +x /root/libernet/* > /dev/null 2>&1
   sleep 10
   echo -e "System will reboot in 10 sec"
   reboot  
