@@ -9,4 +9,4 @@
 <!-- Main CSS -->
 <link rel="stylesheet" href="css/style.css">
 
-<title>Libernet | <?= $title ?></title>
+<title>Modded By VPN Legasi | <?= $title ?></title>
