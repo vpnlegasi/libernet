@@ -60,7 +60,33 @@ function run_other_services() {
     dns_resolver_service
     memory_cleaner_service
     ping_loop_service
+    watchdog_service &
   fi
+}
+
+function watchdog_service() {
+  while true; do
+    sleep 60
+    STATUS=$("${LIBERNET_DIR}/bin/log.sh" -g | grep -o '"status":[0-9]*' | awk -F: '{print $2}')
+    if [[ "$STATUS" == "2" ]]; then
+      CURRENT_IP=$(ip -4 addr show | grep -v "127.0.0.1" | grep "inet" | awk '{print $2}' | cut -d/ -f1 | head -n1)
+      if [[ -z "$CURRENT_IP" ]]; then
+        "${LIBERNET_DIR}/bin/log.sh" -w "Watchdog: Connected but no IP detected, restarting service..."
+        echo "Watchdog: Connected but no IP detected, restarting service..."
+        cancel_services
+        sleep 5
+        case "${TUNNEL_MODE}" in
+          "0") ssh_service ;;
+          "1") v2ray_service ;;
+          "2") ssh_ssl_service ;;
+          "3") trojan_service ;;
+          "4") shadowsocks_service ;;
+          "5") openvpn_service ;;
+          "6") ssh_ws_cdn_service ;;
+        esac
+      fi
+    fi
+  done
 }
 
 function dns_resolver_service() {
