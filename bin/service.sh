@@ -19,41 +19,27 @@ PING_LOOP="$(grep 'ping_loop":' ${SYSTEM_CONFIG} | awk '{print $2}' | sed 's/,//
 function check_connection() {
   counter=0
   max_retries=3
-  retry_done=false
-  CONNECTED=false
-
   while [[ "${counter}" -lt "${max_retries}" ]]; do
-    sleep 20
-    "${LIBERNET_DIR}/bin/log.sh" -w "Checking SOCKS port, attempt: $((counter + 1))"
-    echo "Checking SOCKS port, attempt: $((counter + 1))"
-
-    if nc -z 127.0.0.1 "${DYNAMIC_PORT}" >/dev/null 2>&1; then
-      "${LIBERNET_DIR}/bin/log.sh" -w "<span style=\"color: green\">SOCKS connection OK</span>"
-      echo "SOCKS connection OK"
+    sleep 5
+    # write connection checking to service log
+    "${LIBERNET_DIR}/bin/log.sh" -w "Checking connection, attempt: $[${counter} + 1]"
+    echo -e "Checking connection, attempt: $[${counter} + 1]"
+    if curl -so /dev/null -x "socks5://127.0.0.1:${DYNAMIC_PORT}" "http://bing.com"; then
+      # write connection success to service log
+      "${LIBERNET_DIR}/bin/log.sh" -w "<span style=\"color: green\">Socks connection available</span>"
+      echo -e "Socks connection available!"
       CONNECTED=true
       break
     fi
-
-    counter=$((counter + 1))
-
+    counter=$[${counter} + 1]
+    # max retries reach
     if [[ "${counter}" -eq "${max_retries}" ]]; then
-      "${LIBERNET_DIR}/bin/log.sh" -w "<span style=\"color: red\">SOCKS connection failed</span>"
-      echo "SOCKS connection failed"
+      # write not connectivity to service log
+      "${LIBERNET_DIR}/bin/log.sh" -w "<span style=\"color: red\">Socks connection unavailable</span>"
+      echo -e "Socks connection unavailable!"
+      # cancel Libernet service
       cancel_services
-
-      if [[ "${retry_done}" == false ]]; then
-        "${LIBERNET_DIR}/bin/log.sh" -w "<span style=\"color: orange\">Retry in 90 seconds...</span>"
-        echo "Retry in 90 seconds..."
-        sleep 90
-        retry_done=true
-        counter=0
-        continue
-      else
-        "${LIBERNET_DIR}/bin/log.sh" -w "<span style=\"color: gray\">All reconnect attempts failed, stop service.</span>"
-        echo "All reconnect attempts failed, stop service."
-        sleep 120
-        exit 1
-      fi
+      exit 1
     fi
   done
 }
