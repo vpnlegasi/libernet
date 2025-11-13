@@ -36,7 +36,6 @@ function check_ip() {
     return 1
   fi
 
-  # bandingkan dengan IP sebelumnya
   if [[ "$CURRENT_IP" != "$LAST_IP" ]]; then
     LAST_IP="$CURRENT_IP"
     "${LIBERNET_DIR}/bin/log.sh" -w "SSH tunnel IP changed, restarting..."
