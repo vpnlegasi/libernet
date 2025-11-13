@@ -20,34 +20,38 @@ function check_connection() {
   counter=0
   max_retries=3
   retry_done=false
+  CONNECTED=false
 
   while [[ "${counter}" -lt "${max_retries}" ]]; do
-    sleep 10
-    "${LIBERNET_DIR}/bin/log.sh" -w "Checking connection, attempt: $[${counter} + 1]"
-    echo -e "Checking connection, attempt: $[${counter} + 1]"
-    if curl -so /dev/null -x "socks5://127.0.0.1:${DYNAMIC_PORT}" "http://bing.com"; then
-      "${LIBERNET_DIR}/bin/log.sh" -w "<span style=\"color: green\">Socks connection available</span>"
-      echo -e "Socks connection available!"
+    sleep 20
+    "${LIBERNET_DIR}/bin/log.sh" -w "Checking SOCKS port, attempt: $((counter + 1))"
+    echo "Checking SOCKS port, attempt: $((counter + 1))"
+
+    if nc -z 127.0.0.1 "${DYNAMIC_PORT}" >/dev/null 2>&1; then
+      "${LIBERNET_DIR}/bin/log.sh" -w "<span style=\"color: green\">SOCKS connection OK</span>"
+      echo "SOCKS connection OK"
       CONNECTED=true
       break
     fi
-    counter=$[${counter} + 1]
+
+    counter=$((counter + 1))
 
     if [[ "${counter}" -eq "${max_retries}" ]]; then
-      "${LIBERNET_DIR}/bin/log.sh" -w "<span style=\"color: red\">Socks connection unavailable</span>"
-      echo -e "Socks connection unavailable!"
+      "${LIBERNET_DIR}/bin/log.sh" -w "<span style=\"color: red\">SOCKS connection failed</span>"
+      echo "SOCKS connection failed"
       cancel_services
 
       if [[ "${retry_done}" == false ]]; then
-        "${LIBERNET_DIR}/bin/log.sh" -w "<span style=\"color: orange\">Reconnecting in 60 seconds...</span>"
-        echo -e "Reconnecting in 60 seconds..."
-        sleep 60
+        "${LIBERNET_DIR}/bin/log.sh" -w "<span style=\"color: orange\">Retry in 90 seconds...</span>"
+        echo "Retry in 90 seconds..."
+        sleep 90
         retry_done=true
         counter=0
         continue
       else
-        "${LIBERNET_DIR}/bin/log.sh" -w "<span style=\"color: gray\">All reconnection attempts failed, stopping service.</span>"
-        echo -e "All reconnection attempts failed, stopping service."
+        "${LIBERNET_DIR}/bin/log.sh" -w "<span style=\"color: gray\">All reconnect attempts failed, stop service.</span>"
+        echo "All reconnect attempts failed, stop service."
+        sleep 120
         exit 1
       fi
     fi
@@ -60,33 +64,7 @@ function run_other_services() {
     dns_resolver_service
     memory_cleaner_service
     ping_loop_service
-    watchdog_service &
   fi
-}
-
-function watchdog_service() {
-  while true; do
-    sleep 60
-    STATUS=$("${LIBERNET_DIR}/bin/log.sh" -g | grep -o '"status":[0-9]*' | awk -F: '{print $2}')
-    if [[ "$STATUS" == "2" ]]; then
-      CURRENT_IP=$(ip -4 addr show | grep -v "127.0.0.1" | grep "inet" | awk '{print $2}' | cut -d/ -f1 | head -n1)
-      if [[ -z "$CURRENT_IP" ]]; then
-        "${LIBERNET_DIR}/bin/log.sh" -w "Watchdog: Connected but no IP detected, restarting service..."
-        echo "Watchdog: Connected but no IP detected, restarting service..."
-        cancel_services
-        sleep 5
-        case "${TUNNEL_MODE}" in
-          "0") ssh_service ;;
-          "1") v2ray_service ;;
-          "2") ssh_ssl_service ;;
-          "3") trojan_service ;;
-          "4") shadowsocks_service ;;
-          "5") openvpn_service ;;
-          "6") ssh_ws_cdn_service ;;
-        esac
-      fi
-    fi
-  done
 }
 
 function dns_resolver_service() {
