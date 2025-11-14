@@ -14,8 +14,8 @@ function connect() {
     -p "${4}" \
     -o StrictHostKeyChecking=no \
     -o UserKnownHostsFile=/dev/null \
-    -o ServerAliveInterval=15 \
-    -o ServerAliveCountMax=2 \
+    -o ServerAliveInterval=5 \
+    -o ServerAliveCountMax=5 \
     "${1}@${3}"
 }
 
@@ -26,8 +26,8 @@ function connect_with_proxy() {
     -o ProxyCommand="/usr/bin/corkscrew ${6} ${7} %h %p" \
     -o StrictHostKeyChecking=no \
     -o UserKnownHostsFile=/dev/null \
-    -o ServerAliveInterval=15 \
-    -o ServerAliveCountMax=2 \
+    -o ServerAliveInterval=5 \
+    -o ServerAliveCountMax=5 \
     "${1}@${3}"
 }
 
