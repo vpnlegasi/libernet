@@ -469,6 +469,7 @@ function finish_install() {
 
 function clean_install() {
   rm -rf /root/install.sh > /dev/null 2>&1
+  rm -rf /tmp/install.sh > /dev/null 2>&1
   rm -rf /root/Downloads > /dev/null 2>&1
   find /root/libernet/bin -type f -exec chmod +x {} \; > /dev/null 2>&1
   sleep 10
