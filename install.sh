@@ -476,16 +476,16 @@ function clean_install() {
   reboot
 }
 
-function main_installer() {
-  install_requirements \
-    && install_libernet \
-    && add_libernet_environment \
-    && enable_uhttp_php \
-    && configure_vpnlegasi_firewall \
-    && configure_libernet_service \
-    && setup_system_logs \
-    && finish_install \
-    && clean_install
+main_installer() {
+  install_requirements
+  install_libernet
+  add_libernet_environment
+  enable_uhttp_php
+  configure_vpnlegasi_firewall
+  configure_libernet_service
+  setup_system_logs
+  finish_install
+  clean_install
 }
 
 function main() {
@@ -506,7 +506,9 @@ function main() {
   if [[ ! -d "${LIBERNET_TMP}" ]]; then
     git clone --depth 1 "${REPOSITORY_URL}" "${LIBERNET_TMP}" \
       && cd "${LIBERNET_TMP}" \
-      && bash install.sh
+      && chmod +x install.sh \
+      && ./install.sh
+
   else
     cd "${LIBERNET_TMP}" \
       && main_installer
