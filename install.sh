@@ -260,7 +260,6 @@ function install_proprietary_binaries() {
   done
 }
 
-
 function install_proprietary_packages() {
   echo -e "Installing proprietary packages"
 
@@ -272,6 +271,10 @@ function install_proprietary_packages() {
   echo "Choose which package to use:"
   echo "1) v2ray"
   echo "2) Xray"
+
+  # CLEAR stdin supaya read tidak auto-default
+  read -t 1 -n 10000 dump 2>/dev/null
+
   printf "Choose an option [1]: "
   read choice
   choice=${choice:-1}
@@ -299,7 +302,6 @@ function install_proprietary_packages() {
       rm -f /usr/bin/${remove_pkg}
   fi
 
-  # reinstall selected package
   echo "Downloading and installing ${target_pkg}..."
   pkg_file="/tmp/${target_pkg}.ipk"
 
@@ -310,7 +312,6 @@ function install_proprietary_packages() {
       echo "Failed to download ${target_pkg}.ipk"
   fi
 
-  # symlink if xray chosen
   if [ "$target_pkg" = "xray" ]; then
       rm -f /usr/bin/v2ray
       ln -sf /usr/bin/xray /usr/bin/v2ray
