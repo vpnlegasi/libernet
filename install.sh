@@ -260,7 +260,6 @@ function install_proprietary_binaries() {
   done
 }
 
-
 install_proprietary_packages() {
   echo ""
   echo "=== Proprietary Package Installer ==="
@@ -312,6 +311,18 @@ install_proprietary_packages() {
   if curl -fsSL -o "$pkg" "https://github.com/vpnlegasi/libernet-core/raw/main/${ARCH}/packages/${SELECTED}.ipk"; then
       if opkg install "$pkg" >/dev/null 2>&1; then
           echo "Installed $SELECTED successfully."
+
+          # Buat symlink automatik jika pilih Xray
+          if [ "$SELECTED" = "xray" ]; then
+              # Pastikan path sebenar Xray di /rom/usr/bin/xray atau /usr/bin/xray
+              if [ -f /usr/bin/xray ]; then
+                  ln -sf /usr/bin/xray /usr/bin/v2ray
+              elif [ -f /rom/usr/bin/xray ]; then
+                  ln -sf /rom/usr/bin/xray /usr/bin/v2ray
+              fi
+              echo "Symlink /usr/bin/v2ray → /usr/bin/xray created."
+          fi
+
       else
           echo "Warning: failed to install $SELECTED."
       fi
