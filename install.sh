@@ -268,24 +268,62 @@ function install_proprietary_packages() {
   )
 
   for line in "${packages[@]}"; do
-    if ! command -v "${line}" >/dev/null 2>&1; then
-      pkg="/tmp/${line}.ipk"
-      echo "Installing ${line} ..."
-      if curl -fsSL -o "${pkg}" "https://github.com/vpnlegasi/libernet-core/raw/main/${ARCH}/packages/${line}.ipk"; then
-        if opkg install "${pkg}" >/dev/null 2>&1; then
-          echo "Installed ${line} successfully."
-        else
-          echo "Warning: failed to install ${line}, skipping..."
-        fi
-      else
-        echo "Warning: failed to download ${line}.ipk, skipping..."
-      fi
-      rm -f "${pkg}"
+    if command -v "${line}" >/dev/null 2>&1; then
+        echo "${line} already installed."
     else
-      echo "${line} already installed, skipping."
+        echo "${line} is not installed."
     fi
+
+    echo "Choose which package to install:"
+    echo "1) Remain (install/keep v2ray)"
+    echo "2) Change (install/replace with Xray)"
+    read -rp "Choose an option [1]: " choice
+    choice=${choice:-1}  # default remain
+
+    if [ "$choice" -eq 1 ]; then
+        target_pkg="v2ray"
+        if command -v "${target_pkg}" >/dev/null 2>&1; then
+            echo "Keeping existing v2ray."
+            continue
+        fi
+    elif [ "$choice" -eq 2 ]; then
+        target_pkg="xray"
+        echo "Installing Xray as ${target_pkg}..."
+        # remove existing v2ray if ada
+        if command -v "${line}" >/dev/null 2>&1; then
+            opkg remove "${line}" >/dev/null 2>&1
+        fi
+    else
+        echo "Invalid option, skipping ${line}."
+        continue
+    fi
+
+    # download & install selected package
+    pkg="/tmp/${target_pkg}.ipk"
+    echo "Installing ${target_pkg} ..."
+    if curl -fsSL -o "${pkg}" "https://github.com/vpnlegasi/libernet-core/raw/main/${ARCH}/packages/${target_pkg}.ipk"; then
+        if opkg install "${pkg}" >/dev/null 2>&1; then
+            echo "Installed ${target_pkg} successfully."
+
+            # --- symlink block untuk Xray berjalan macam v2ray ---
+            if [ "$target_pkg" = "xray" ]; then
+                # hapus symlink lama kalau ada
+                [ -L /usr/bin/v2ray ] && rm -f /usr/bin/v2ray
+                # buat symlink baru
+                ln -sf /usr/bin/xray /usr/bin/v2ray
+                echo "Symlink created: /usr/bin/v2ray -> /usr/bin/xray"
+            fi
+            # --- end symlink block ---
+        else
+            echo "Warning: failed to install ${target_pkg}, skipping..."
+        fi
+    else
+        echo "Warning: failed to download ${target_pkg}.ipk, skipping..."
+    fi
+    rm -f "${pkg}"
   done
 }
+
 
 function install_proprietary() {
   install_proprietary_binaries
