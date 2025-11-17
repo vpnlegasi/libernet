@@ -271,17 +271,28 @@ function install_proprietary_packages() {
         echo "${line} is not installed."
     fi
 
-    echo "Choose which package to install:"
-    echo "1) Remain (install/keep v2ray)"
-    echo "2) Change (install/replace with Xray)"
-    printf "Choose an option [1]: "
-    read choice
-    choice=${choice:-1}
+    while true; do
+        echo
+        echo "Choose which package to install:"
+        echo "1) Remain (keep existing v2ray)"
+        echo "2) Change (replace with Xray)"
+        printf "Choose an option [1]: "
+        read choice
+        choice=${choice:-1}
+
+        if [[ "$choice" == "1" || "$choice" == "2" ]]; then
+            break
+        fi
+        echo "Invalid choice, please try again."
+    done
 
     if [ "$choice" -eq 1 ]; then
         target_pkg="v2ray"
-        if command -v "${target_pkg}" >/dev/null 2>&1; then
-            echo "Keeping existing v2ray."
+        echo "Keeping existing v2ray..."
+        # Jika v2ray belum ada, install ia
+        if ! command -v "${target_pkg}" >/dev/null 2>&1; then
+            echo "v2ray not found, installing..."
+        else
             return
         fi
     elif [ "$choice" -eq 2 ]; then
@@ -291,9 +302,6 @@ function install_proprietary_packages() {
         if command -v v2ray >/dev/null 2>&1; then
             opkg remove v2ray >/dev/null 2>&1
         fi
-    else
-        echo "Invalid option."
-        return
     fi
 
     pkg="/tmp/${target_pkg}.ipk"
