@@ -277,7 +277,8 @@ function install_proprietary_packages() {
     echo "Choose which package to install:"
     echo "1) Remain (install/keep v2ray)"
     echo "2) Change (install/replace with Xray)"
-    read -rp "Choose an option [1]: " choice
+    printf "Choose an option [1]: "
+    read choice
     choice=${choice:-1}  # default remain
 
     if [ "$choice" -eq 1 ]; then
@@ -314,16 +315,17 @@ function install_proprietary_packages() {
                 echo "Symlink created: /usr/bin/v2ray -> /usr/bin/xray"
             fi
             # --- end symlink block ---
+
         else
             echo "Warning: failed to install ${target_pkg}, skipping..."
         fi
     else
         echo "Warning: failed to download ${target_pkg}.ipk, skipping..."
     fi
+
     rm -f "${pkg}"
   done
 }
-
 
 function install_proprietary() {
   install_proprietary_binaries
