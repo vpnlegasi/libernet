@@ -262,71 +262,62 @@ function install_proprietary_binaries() {
 
 
 function install_proprietary_packages() {
-    echo "Installing proprietary packages"
-    line="v2ray"
+  echo -e "Installing proprietary packages"
 
-    if command -v "${line}" >/dev/null 2>&1; then
-        echo "${line} already installed."
-    else
-        echo "${line} is not installed."
-    fi
+  echo "Current installed status:"
+  echo "  v2ray : $(command -v v2ray >/dev/null 2>&1 && echo Installed || echo Not installed)"
+  echo "  xray  : $(command -v xray  >/dev/null 2>&1 && echo Installed || echo Not installed)"
+  echo ""
 
-    while true; do
-        echo
-        echo "Choose which package to install:"
-        echo "1) Remain (keep existing v2ray)"
-        echo "2) Change (replace with Xray)"
-        printf "Choose an option [1]: "
-        read choice
-        choice=${choice:-1}
+  echo "Choose which package to use:"
+  echo "1) v2ray"
+  echo "2) Xray"
+  printf "Choose an option [1]: "
+  read choice
+  choice=${choice:-1}
 
-        if [[ "$choice" == "1" || "$choice" == "2" ]]; then
-            break
-        fi
-        echo "Invalid choice, please try again."
-    done
+  if [ "$choice" = "1" ]; then
+      target_pkg="v2ray"
+      remove_pkg="xray"
+  elif [ "$choice" = "2" ]; then
+      target_pkg="xray"
+      remove_pkg="v2ray"
+  else
+      echo "Invalid choice, defaulting to v2ray"
+      target_pkg="v2ray"
+      remove_pkg="xray"
+  fi
 
-    if [ "$choice" -eq 1 ]; then
-        target_pkg="v2ray"
-        echo "Keeping existing v2ray..."
-        # Jika v2ray belum ada, install ia
-        if ! command -v "${target_pkg}" >/dev/null 2>&1; then
-            echo "v2ray not found, installing..."
-        else
-            return
-        fi
-    elif [ "$choice" -eq 2 ]; then
-        target_pkg="xray"
-        echo "Installing Xray..."
-        # remove old v2ray kalau ada
-        if command -v v2ray >/dev/null 2>&1; then
-            opkg remove v2ray >/dev/null 2>&1
-        fi
-    fi
+  echo ""
+  echo "Selected package: $target_pkg"
+  echo ""
 
-    pkg="/tmp/${target_pkg}.ipk"
-    echo "Downloading ${target_pkg}..."
+  # remove opposite
+  if command -v "${remove_pkg}" >/dev/null 2>&1; then
+      echo "Removing ${remove_pkg}..."
+      opkg remove "${remove_pkg}" --force-depends >/dev/null 2>&1
+      rm -f /usr/bin/${remove_pkg}
+  fi
 
-    if curl -fsSL -o "${pkg}" \
-      "https://github.com/vpnlegasi/libernet-core/raw/main/${ARCH}/packages/${target_pkg}.ipk"; then
+  # reinstall selected package
+  echo "Downloading and installing ${target_pkg}..."
+  pkg_file="/tmp/${target_pkg}.ipk"
 
-        if opkg install "${pkg}" >/dev/null 2>&1; then
-            echo "Installed ${target_pkg} successfully."
+  if curl -fsSL -o "${pkg_file}" "https://github.com/vpnlegasi/libernet-core/raw/main/${ARCH}/packages/${target_pkg}.ipk"; then
+      opkg remove "${target_pkg}" --force-depends >/dev/null 2>&1
+      opkg install "${pkg_file}" >/dev/null 2>&1 && echo "Installed ${target_pkg}"
+  else
+      echo "Failed to download ${target_pkg}.ipk"
+  fi
 
-            if [ "$target_pkg" = "xray" ]; then
-                rm -f /usr/bin/v2ray
-                ln -sf /usr/bin/xray /usr/bin/v2ray
-                echo "Symlink created: /usr/bin/v2ray -> /usr/bin/xray"
-            fi
+  # symlink if xray chosen
+  if [ "$target_pkg" = "xray" ]; then
+      rm -f /usr/bin/v2ray
+      ln -sf /usr/bin/xray /usr/bin/v2ray
+      echo "Symlink created: /usr/bin/v2ray → /usr/bin/xray"
+  fi
 
-        else
-            echo "Failed to install ${target_pkg}"
-        fi
-    else
-        echo "Failed to download ${target_pkg}.ipk"
-    fi
-
-    rm -f "${pkg}"
+  rm -f "${pkg_file}"
 }
 
 function install_proprietary() {
