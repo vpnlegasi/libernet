@@ -260,65 +260,66 @@ function install_proprietary_binaries() {
   done
 }
 
-function install_proprietary_packages() {
-  echo -e "Installing proprietary packages"
 
-  echo "Current installed status:"
-  echo "  v2ray : $(command -v v2ray >/dev/null 2>&1 && echo Installed || echo Not installed)"
-  echo "  xray  : $(command -v xray  >/dev/null 2>&1 && echo Installed || echo Not installed)"
+install_proprietary_packages() {
   echo ""
-
-  echo "Choose which package to use:"
-  echo "1) v2ray"
+  echo "=== Proprietary Package Installer ==="
+  echo "1) V2Ray"
   echo "2) Xray"
-
-  # CLEAR stdin supaya read tidak auto-default
-  read -t 1 -n 10000 dump 2>/dev/null
-
-  printf "Choose an option [1]: "
+  printf "Choose your engine [1-2]: "
   read choice
-  choice=${choice:-1}
 
-  if [ "$choice" = "1" ]; then
-      target_pkg="v2ray"
-      remove_pkg="xray"
-  elif [ "$choice" = "2" ]; then
-      target_pkg="xray"
-      remove_pkg="v2ray"
-  else
-      echo "Invalid choice, defaulting to v2ray"
-      target_pkg="v2ray"
-      remove_pkg="xray"
-  fi
+  case "$choice" in
+    1) SELECTED="v2ray" ;;
+    2) SELECTED="xray" ;;
+    *)
+      echo "Invalid choice. Defaulting to V2Ray."
+      SELECTED="v2ray"
+      ;;
+  esac
 
-  echo ""
-  echo "Selected package: $target_pkg"
+  echo "Selected engine: $SELECTED"
   echo ""
 
-  # remove opposite
-  if command -v "${remove_pkg}" >/dev/null 2>&1; then
-      echo "Removing ${remove_pkg}..."
-      opkg remove "${remove_pkg}" --force-depends >/dev/null 2>&1
-      rm -f /usr/bin/${remove_pkg}
-  fi
+  # Detect current installed engine
+  CURRENT=""
+  if command -v v2ray >/dev/null 2>&1; then CURRENT="v2ray"; fi
+  if command -v xray >/dev/null 2>&1; then CURRENT="xray"; fi
 
-  echo "Downloading and installing ${target_pkg}..."
-  pkg_file="/tmp/${target_pkg}.ipk"
-
-  if curl -fsSL -o "${pkg_file}" "https://github.com/vpnlegasi/libernet-core/raw/main/${ARCH}/packages/${target_pkg}.ipk"; then
-      opkg remove "${target_pkg}" --force-depends >/dev/null 2>&1
-      opkg install "${pkg_file}" >/dev/null 2>&1 && echo "Installed ${target_pkg}"
+  if [ -n "$CURRENT" ]; then
+      echo "Current installed engine: $CURRENT"
   else
-      echo "Failed to download ${target_pkg}.ipk"
+      echo "No engine currently installed."
   fi
 
-  if [ "$target_pkg" = "xray" ]; then
-      rm -f /usr/bin/v2ray
-      ln -sf /usr/bin/xray /usr/bin/v2ray
-      echo "Symlink created: /usr/bin/v2ray → /usr/bin/xray"
+  # If same engine → skip
+  if [ "$CURRENT" = "$SELECTED" ]; then
+      echo "$SELECTED already installed, skipping installation."
+      return
   fi
 
-  rm -f "${pkg_file}"
+  # If different → remove old engine
+  if [ -n "$CURRENT" ] && [ "$CURRENT" != "$SELECTED" ]; then
+      echo "Removing existing engine: $CURRENT ..."
+      opkg remove "$CURRENT" >/dev/null 2>&1
+      echo "$CURRENT removed."
+  fi
+
+  # Install new selected engine
+  pkg="/tmp/${SELECTED}.ipk"
+  echo "Installing $SELECTED ..."
+
+  if curl -fsSL -o "$pkg" "https://github.com/vpnlegasi/libernet-core/raw/main/${ARCH}/packages/${SELECTED}.ipk"; then
+      if opkg install "$pkg" >/dev/null 2>&1; then
+          echo "Installed $SELECTED successfully."
+      else
+          echo "Warning: failed to install $SELECTED."
+      fi
+  else
+      echo "Warning: failed to download $SELECTED.ipk"
+  fi
+
+  rm -f "$pkg"
 }
 
 function install_proprietary() {
