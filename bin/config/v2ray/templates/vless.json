@@ -73,12 +73,6 @@
             ""
           ],
           "path": ""
-        },
-        "httpUpgradeSettings": {
-          "host": [
-            ""
-          ],
-          "path": ""
         }
       }
     }

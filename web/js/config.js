@@ -72,10 +72,6 @@ const app = new Vue({
                                 {
                                     name: "HTTP",
                                     value: "http"
-                                },
-                                {
-                                    name: "HTTP-Upgrade",
-                                    value: "httpupgrade"
                                 }
                             ],
                             securities: [
@@ -112,10 +108,6 @@ const app = new Vue({
                                 },
                                 stream: {
                                     sni: "",
-                                    path: ""
-                                },
-                                httpupgrade: {
-                                    host: "",
                                     path: ""
                                 },
                                 etc: {
@@ -430,18 +422,7 @@ const app = new Vue({
                 profile.network = network
                 profile.security = security
                 switch (protocol) {
-                    case "vless":
-                        remote = res.data.data.outbounds[0].settings.vnext[0]
-                        profile.server.host = remote.address
-                        profile.server.port = remote.port
-                        profile.server.user.level = remote.users[0].level
-                        profile.server.user.vless.id = remote.users[0].id
-                        // handle httpupgrade
-                        if (network === "httpupgrade") {
-                            profile.httpupgrade.host = res.data.data.outbounds[0].streamSettings.httpupgradeSettings.headers.Host
-                            profile.httpupgrade.path = res.data.data.outbounds[0].streamSettings.httpupgradeSettings.path
-                        }
-                        break
+                    // vmess
                     case "vmess":
                         remote = res.data.data.outbounds[0].settings.vnext[0]
                         profile.server.host = remote.address
@@ -450,6 +431,15 @@ const app = new Vue({
                         profile.server.user.vmess.id = remote.users[0].id
                         profile.server.user.vmess.security = remote.users[0].security
                         break
+                    // vless
+                    case "vless":
+                        remote = res.data.data.outbounds[0].settings.vnext[0]
+                        profile.server.host = remote.address
+                        profile.server.port = remote.port
+                        profile.server.user.level = remote.users[0].level
+                        profile.server.user.vless.id = remote.users[0].id
+                        break
+                    // trojan
                     case "trojan":
                         remote = res.data.data.outbounds[0].settings.servers[0]
                         profile.server.host = remote.address
@@ -459,20 +449,19 @@ const app = new Vue({
                         break
                 }
                 switch (network) {
+                    // tcp
                     case "tcp":
                         sni = res.data.data.outbounds[0].streamSettings.tlsSettings.serverName
                         break
+                    // ws
                     case "ws":
                         sni = res.data.data.outbounds[0].streamSettings.wsSettings.headers.Host
                         path = res.data.data.outbounds[0].streamSettings.wsSettings.path
                         break
+                    // http
                     case "http":
                         sni = res.data.data.outbounds[0].streamSettings.httpSettings.host[0]
                         path = res.data.data.outbounds[0].streamSettings.httpSettings.path
-                        break
-                    case "httpupgrade":
-                        sni = res.data.data.outbounds[0].streamSettings.httpupgradeSettings.headers.Host
-                        path = res.data.data.outbounds[0].streamSettings.httpupgradeSettings.path
                         break
                 }
                 profile.stream.sni = sni
