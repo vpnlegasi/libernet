@@ -21,7 +21,6 @@
       "statsOutboundDownlink": false
     }
   },
-
   "inbounds": [
     {
       "listen": "127.0.0.1",
@@ -36,7 +35,6 @@
       "tag": "socks"
     }
   ],
-
   "outbounds": [
     {
       "sendThrough": "0.0.0.0",
@@ -57,7 +55,6 @@
         ]
       },
       "tag": "vless",
-
       "streamSettings": {
         "network": "",
         "security": "",
@@ -65,29 +62,27 @@
           "allowInsecure": true,
           "serverName": ""
         },
-
         "wsSettings": {
           "path": "",
           "headers": {
             "Host": ""
           }
         },
-
         "httpSettings": {
-          "host": [""],
+          "host": [
+            ""
+          ],
           "path": ""
         },
-
-        "httpupgradeSettings": {
-          "path": "",
-          "headers": {
-            "Host": ""
-          }
+        "httpUpgradeSettings": {
+          "host": [
+            ""
+          ],
+          "path": ""
         }
       }
     }
   ],
-
   "etc": {
     "ip": "",
     "udpgw": {

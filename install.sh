@@ -312,7 +312,7 @@ install_proprietary_packages() {
       if opkg install "$pkg" >/dev/null 2>&1; then
           echo "Installed $SELECTED successfully."
 
-          # Buat symlink automatik jika pilih Xray
+          # Buat symlink Xray
           if [ "$SELECTED" = "xray" ]; then
               # Pastikan path sebenar Xray di /rom/usr/bin/xray atau /usr/bin/xray
               if [ -f /usr/bin/xray ]; then
