@@ -429,7 +429,10 @@ function finish_install() {
   clear
   chmod +x /root/libernet/bin/*
   router_ip="$(ifconfig br-lan | grep 'inet addr:' | awk '{print $2}' | awk -F ':' '{print $2}')"
-  echo -e "Libernet successfully installed!\nLibernet URL: http://${router_ip}/libernet"
+  echo -e "Libernet URL: http://${router_ip}/libernet"
+  echo -e "Username : admin"
+  echo -e "Password : vpnlegasi"
+  echo -e "Libernet successfully installed!"
 }
 
 function clean_install() {
