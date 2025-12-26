@@ -381,6 +381,15 @@ unsniproxy(){
     echo -e "[Info] Sniproxy uninstall complete..."
 }
 
+confirm(){
+    echo -e "${yellow}Do you want to continue? (n: cancel / y: continue)${plain}"
+    read -e -p "(Default: cancel): " selection
+    [ -z "${selection}" ] && selection="n"
+    if [ ${selection} != "y" ]; then
+        exit 0
+    fi
+}
+
 hello(){
     echo ""
     echo -e "${yellow}Dnsmasq + SNI Proxy self-install script${plain}"
