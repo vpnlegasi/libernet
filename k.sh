@@ -392,13 +392,13 @@ menu(){
     hello
     echo "Please select an option:"
     echo "  1) Install Dnsmasq + SNI Proxy"
-    echo "  7) Uninstall Dnsmasq + SNI Proxy"
+    echo "  2) Uninstall Dnsmasq + SNI Proxy"
     echo "  0) Exit"
     echo ""
     read -e -p "Enter number [0-9]: " choice
     case $choice in
         1) fastmode=0; install_all ;;
-        7) hello; echo -e "${yellow}Executing uninstall of Dnsmasq and SNI Proxy.${plain}"; confirm; undnsmasq; unsniproxy ;;
+        2) hello; echo -e "${yellow}Executing uninstall of Dnsmasq and SNI Proxy.${plain}"; confirm; undnsmasq; unsniproxy ;;
         0) exit 0 ;;
         *) echo -e "[Error] Invalid selection."; exit 1 ;;
     esac
