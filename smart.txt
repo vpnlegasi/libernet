@@ -29,136 +29,50 @@ log_CYAN() {
     echo -e "${CYAN}$1${RESET}"
 }
 
-# ============================================================
-# SmartDNS One-Click Install & Configuration Script
-# Please make sure to run this script as root or with sudo
-# ============================================================
-
+# SmartDNS One-Click Install and Configuration Script
+# Please make sure to run this script with sudo or root privileges
 REMOTE_SCRIPT_URL="https://raw.githubusercontent.com/lthero-big/Smartdns_sniproxy_installer/refs/heads/main/smtdns_install.sh"
 REMOTE_STREAM_CONFIG_FILE_URL="https://raw.githubusercontent.com/lthero-big/Smartdns_sniproxy_installer/refs/heads/main/StreamConfig.yaml"
-REMOTE_DNSMASQ_SNIPROXY_URL="https://raw.githubusercontent.com/myxuchangbin/dnsmasq_sniproxy_install/master/dnsmasq_sniproxy.sh"
+REMOTE_DNSMASQ_SNIPROXY_URL=https://raw.githubusercontent.com/myxuchangbin/dnsmasq_sniproxy_install/master/dnsmasq_sniproxy.sh
 REMOTE_SMARTDNS_URL="https://github.com/pymumu/smartdns/releases/download/Release46/smartdns.1.2024.06.12-2222.x86-linux-all.tar.gz"
-REMOTE_RegionRestrictionCheck_URL="https://raw.githubusercontent.com/1-stream/RegionRestrictionCheck/main/check.sh"
-
-# Script information
+REMOTE_RegionRestrictionCheck_URL=https://raw.githubusercontent.com/1-stream/RegionRestrictionCheck/main/check.sh
+# Script Information
 SCRIPT_VERSION="V_2.7.1"
 LAST_UPDATED=$(date +"%Y-%m-%d")
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-
 STREAM_CONFIG_FILE="$SCRIPT_DIR/StreamConfig.yaml"
 SMART_CONFIG_FILE="/etc/smartdns/smartdns.conf"
 SNIPROXY_CONFIG="/etc/sniproxy.conf"
 
-# ============================================================
-# Check for script updates
-# ============================================================
+# Check Script Update
 check_script_update() {
-    echo -e "${GREEN}Checking for script updates...${RESET}"
+  echo -e "${GREEN}Checking for script updates...${RESET}"
+  # Set timeout to 10 seconds
+  REMOTE_VERSION=$(curl --max-time 10 -fsSL "$REMOTE_SCRIPT_URL" | grep -E "^SCRIPT_VERSION=" | cut -d'"' -f2)
+  # Check if remote version was successfully retrieved
+  if [ $? -ne 0 ]; then
+    echo -e "${YELLOW}Unable to fetch the latest version (timeout or network issue, please check if DNS is configured correctly, you can try emergency restore of DNS settings).${RESET}"
+    return
+  fi
 
-    # Set timeout to 10 seconds
-    REMOTE_VERSION=$(curl --max-time 10 -fsSL "$REMOTE_SCRIPT_URL" | grep -E "^SCRIPT_VERSION=" | cut -d'"' -f2)
-
-    # Check if remote version fetch failed
-    if [ $? -ne 0 ]; then
-        echo -e "${YELLOW}Unable to fetch the latest version (timeout or network issue. Please verify DNS configuration, emergency DNS restore may help).${RESET}"
-        return
+  if [ "$REMOTE_VERSION" != "$SCRIPT_VERSION" ]; then
+    echo -e "${GREEN}New version found ($REMOTE_VERSION), current version $SCRIPT_VERSION.${RESET}"
+    echo -e "${GREEN}Do you want to update the script? (y/N)${RESET}"
+    read update_choice
+    if [[ "$update_choice" == "y" || "$update_choice" == "Y" ]]; then
+      echo -e "${GREEN}Updating script...${RESET}"
+      curl --max-time 10 -fsSL "$REMOTE_SCRIPT_URL" -o "$0"
+      if [ $? -eq 0 ]; then
+        chmod +x "$0"
+        echo -e "${GREEN}Script has been updated to $REMOTE_VERSION. Please rerun the script.${RESET}"
+        exit 0
+      else
+        echo -e "${RED}Script update failed.${RESET}"
+      fi
     fi
-
-    if [ "$REMOTE_VERSION" != "$SCRIPT_VERSION" ]; then
-        echo -e "${GREEN}New version detected ($REMOTE_VERSION). Current version: $SCRIPT_VERSION${RESET}"
-        echo -e "${GREEN}Do you want to update the script? (y/N)${RESET}"
-        read update_choice
-
-        if [[ "$update_choice" == "y" || "$update_choice" == "Y" ]]; then
-            echo -e "${GREEN}Updating script...${RESET}"
-            curl --max-time 10 -fsSL "$REMOTE_SCRIPT_URL" -o "$0"
-
-            if [ $? -eq 0 ]; then
-                chmod +x "$0"
-                echo -e "${GREEN}Script updated successfully to $REMOTE_VERSION. Please re-run the script.${RESET}"
-                exit 0
-            else
-                echo -e "${RED}Script update failed.${RESET}"
-            fi
-        fi
-    else
-        echo -e "${GREEN}Current script is already the latest version: $SCRIPT_VERSION${RESET}"
-    fi
-}
-
-# ============================================================
-# Add domain rules into the table block of /etc/sniproxy.conf
-# ============================================================
-add_domain_to_sniproxy_table() {
-    local domain="$1"
-
-    # Check if configuration file exists
-    if [[ ! -f "$SNIPROXY_CONFIG" ]]; then
-        echo -e "${RED}[ERROR] sniproxy configuration file not found: $SNIPROXY_CONFIG${RESET}"
-        return 1
-    fi
-
-    # Check if table block exists
-    local table_start=$(grep -n "^table {" "$SNIPROXY_CONFIG" | cut -d: -f1)
-
-    if [[ -z $table_start ]]; then
-        echo -e "${RED}[ERROR] table block not found in sniproxy configuration!${RESET}"
-        return 1
-    fi
-
-    # Check if domain already exists
-    if grep -q ".*${domain//./\\.} *" "$SNIPROXY_CONFIG"; then
-        echo -e "${YELLOW}Skipping existing domain: $domain${RESET}"
-        return
-    fi
-
-    # Insert domain after the last entry inside table block
-    sed -i "${table_start}a \    .*${domain//./\\.} *" "$SNIPROXY_CONFIG"
-    echo -e "${GREEN}Added domain: $domain into table block${RESET}"
-}
-
-# ============================================================
-# Add streaming platform domains into sniproxy
-# ============================================================
-add_streaming_to_sniproxy() {
-    local platform_name="$1"
-    local sub_platform_name="$2"
-
-    # If sub-platform is provided
-    if [[ -n "$sub_platform_name" ]]; then
-        echo -e "${CYAN}Processing platform: $platform_name -> $sub_platform_name${RESET}"
-
-        local domains=$(yq ".$platform_name.$sub_platform_name[]" "$STREAM_CONFIG_FILE" 2>/dev/null | tr -d '"')
-
-        if [[ -z $domains ]]; then
-            echo -e "${YELLOW}No domain configuration found for $platform_name -> $sub_platform_name, skipping...${RESET}"
-            return
-        fi
-
-        # Loop through domains and add them to table block
-        for domain in $domains; do
-            add_domain_to_sniproxy_table "$domain"
-        done
-
-    # If only primary platform is provided
-    elif [[ -n "$platform_name" ]]; then
-        echo -e "${CYAN}Processing primary platform: $platform_name${RESET}"
-
-        local sub_platforms=$(yq ".$platform_name | keys" "$STREAM_CONFIG_FILE" 2>/dev/null | jq -r '.[]')
-
-        if [[ -z $sub_platforms ]]; then
-            echo -e "${YELLOW}No sub-platforms found for $platform_name, skipping...${RESET}"
-            return
-        fi
-
-        # Recursively process each sub-platform
-        for sub_platform in $sub_platforms; do
-            add_streaming_to_sniproxy "$platform_name" "$sub_platform"
-        done
-    else
-        echo -e "${RED}ERROR: No valid platform name specified!${RESET}"
-        return 1
-    fi
+  else
+    echo -e "${GREEN}The script is already the latest version: $SCRIPT_VERSION.${RESET}"
+  fi
 }
 
 # Call update check function
@@ -167,7 +81,7 @@ check_script_update
 
 # Check if running as root
 if [ "$EUID" -ne 0 ]; then
-  echo -e "${RED}[Error] Please run this script as root!${RESET}"
+  echo -e "${RED}[Error] Please run this script with root privileges!${RESET}"
   exit 1
 fi
 
@@ -181,7 +95,7 @@ check_tools() {
     done
 
     if ! command -v yq &>/dev/null; then
-        echo -e "${RED}yq is not installed, trying to install via pip...${RESET}"
+        echo -e "${RED}yq is not installed, attempting installation via pip...${RESET}"
         sudo apt install -y python3-pip
         pip3 install yq
         if ! command -v yq &>/dev/null; then
@@ -193,16 +107,16 @@ check_tools() {
 
 check_tools
 
-# Get current external IP address and region
+# Get current external IP and region
 IP_INFO=$(curl -s http://ipinfo.io/json)
 IP_ADDRESS=$(echo $IP_INFO | jq -r '.ip')
 REGION=$(echo $IP_INFO | jq -r '.region')
 
 
-# Check whether SmartDNS is already installed
+# Check if SmartDNS is already installed
 check_smartdns_installed() {
     if command -v smartdns &>/dev/null; then
-        echo -e "${GREEN}[Installed] SmartDNS is already installed!${RESET}"
+        echo -e "${GREEN}[Installed] SmartDNS detected!${RESET}"
         return 0
     else
         echo -e "${RED}[Not Installed] SmartDNS not detected.${RESET}"
@@ -224,7 +138,7 @@ install_smartdns() {
 
     wget $REMOTE_SMARTDNS_URL
     if [ $? -ne 0 ]; then
-        echo -e "${RED}[Error] Failed to download SmartDNS installation package, please check your network connection!${RESET}"
+        echo -e "${RED}[Error] Failed to download SmartDNS package, please check network connection!${RESET}"
         exit 1
     fi
     
@@ -238,11 +152,11 @@ install_smartdns() {
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}SmartDNS installed successfully!${RESET}"
     else
-        echo -e "${RED}[Error] SmartDNS installation failed, please check logs!${RESET}"
+        echo -e "${RED}[Error] SmartDNS installation failed, please check the logs!${RESET}"
         exit 1
     fi
 
-    # Clean up installation temporary files
+    # Clean up temporary installation files
     cd /
     rm -rf "$TEMP_DIR"
 }
@@ -260,39 +174,39 @@ insert_server_into_config() {
 
     # Check if config file exists
     if [[ ! -f "$config_file" ]]; then
-        echo -e "${RED}Configuration file does not exist: $config_file${RESET}"
+        echo -e "${RED}Config file does not exist: $config_file${RESET}"
         return 1
     fi
 
     # Escape special characters in server_line
     local escaped_server_line=$(echo "$server_line" | sed 's/[\/&]/\\&/g; s/ /\\ /g')
 
-    # Find the position of the last server entry
+    # Find the last server entry position
     local insert_position=$(grep -n "^server " "$config_file" | tail -n 1 | cut -d: -f1)
-    # If server entry exists, insert after it
+    # If a server entry is found, insert after it
     if [[ -n "$insert_position" ]]; then
         sed -i "${insert_position}a ${escaped_server_line}" "$config_file"
     else
-        # If no server entry is found, insert at the beginning of the file
+        # If no server entry found, insert at the beginning of the file
         sed -i "1i $server_line" "$config_file"
         echo -e "${YELLOW}No server entry found, new entry inserted at the beginning: $server_line${RESET}"
     fi
 }
 
-# Add upstream DNS group
+# Add upstream DNS as group
 add_upstream_dns_group() {
-    # Add custom upstream DNS groups
+    # Add custom upstream group DNS
     while true; do
         echo -e "${BLUE}Do you want to add a custom upstream DNS group? (y/N): ${RESET}"
         read -r add_dns
         if [[ "$add_dns" =~ ^[Yy]$ ]]; then
-            echo -e "${BLUE}Please enter the upstream DNS IP address (format: 11.22.33.44):${RESET}"
+            echo -e "${BLUE}Enter the IP address of the upstream DNS (format: 11.22.33.44):${RESET}"
             read -r dns_ip
             if [[ ! $dns_ip =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
                 echo -e "${RED}Invalid IP address, please re-enter!${RESET}"
                 return
             fi
-            echo -e "${BLUE}Please enter the group name (e.g.: us):${RESET}"
+            echo -e "${BLUE}Enter the name of this group (e.g., us):${RESET}"
             read -r group_name
             if [[ -z $group_name ]]; then
                 echo -e "${RED}Group name cannot be empty, please re-enter!${RESET}"
@@ -306,6 +220,7 @@ add_upstream_dns_group() {
     done
 }
 
+
 # View existing upstream DNS groups
 view_upstream_dns_groups() {
     echo -e "${CYAN}Currently configured upstream DNS groups:${RESET}"
@@ -316,7 +231,7 @@ view_upstream_dns_groups() {
 configure_smartdns() {
     echo -e "${BLUE}Configuring SmartDNS...${RESET}"
 
-    # Default configuration file content
+    # Default config file content
     DEFAULT_CONFIG="bind [::]:53
 
 dualstack-ip-selection no
@@ -338,16 +253,16 @@ cache-checkpoint-time 86400
 server 8.8.8.8
 server 8.8.4.4"
 
-    # Write default configuration file
+    # Write default config file
     echo "$DEFAULT_CONFIG" > "$SMART_CONFIG_FILE"
-    echo -e "${GREEN}Default configuration file has been generated: $SMART_CONFIG_FILE${RESET}"
+    echo -e "${GREEN}Default config file generated: $SMART_CONFIG_FILE${RESET}"
 
     add_upstream_dns_group
 
     echo -e "${GREEN}SmartDNS configuration completed!${RESET}"
 }
 
-# Detect and release services occupying port 53
+# Check and release port 53
 release_port_53() {
     echo -e "${BLUE}Checking port 53 usage...${RESET}"
 
@@ -355,16 +270,16 @@ release_port_53() {
         echo -e "\033[31mPort 53 is occupied by the following processes:${RESET}"
         lsof -i :53
 
-        # Detect systemd-resolved
+        # Check systemd-resolved
         if systemctl is-active --quiet systemd-resolved; then
             echo -e "\033[33msystemd-resolved is running and occupying port 53.${RESET}"
-            echo -e "\033[33mAttempting to stop systemd-resolved service...${RESET}"
+            echo -e "\033[33mAttempting to stop systemd-resolved...${RESET}"
             systemctl stop systemd-resolved
             systemctl disable systemd-resolved
-            echo -e "${GREEN}[Success] systemd-resolved service has been stopped and disabled.${RESET}"
+            echo -e "${GREEN}[Success] systemd-resolved has been stopped and disabled.${RESET}"
         fi
 
-        # Stop other occupying processes
+        # Kill other occupying processes
         lsof -i :53 | awk 'NR>1 {print $2}' | xargs -r kill -9
         echo -e "${GREEN}Port 53 has been released.${RESET}"
     else
@@ -372,21 +287,21 @@ release_port_53() {
     fi
 }
 
-# Display script title
+# Display script header
 echo -e "${BLUE}======================================${RESET}"
-echo -e "${GREEN}     One-click SmartDNS and Sniproxy Setup Script          ${RESET}"
+echo -e "${GREEN}     One-Click SmartDNS and Sniproxy Script          ${RESET}"
 echo -e "${CYAN}       Version:  $SCRIPT_VERSION                ${RESET}"
 echo -e "${CYAN}       Last Updated: $LAST_UPDATED         ${RESET}"
-echo -e "${CYAN}       SmartDNS config path: $SMART_CONFIG_FILE       ${RESET}"
-echo -e "${CYAN}       Sniproxy config path: $SNIPROXY_CONFIG      ${RESET}"
-echo -e "${CYAN}       Streaming list: $STREAM_CONFIG_FILE ${RESET}"
+echo -e "${CYAN}       SmartDNS config file path: $SMART_CONFIG_FILE       ${RESET}"
+echo -e "${CYAN}       Sniproxy config file path: $SNIPROXY_CONFIG      ${RESET}"
+echo -e "${CYAN}       Stream list: $STREAM_CONFIG_FILE ${RESET}"
 echo -e "${BLUE}======================================${RESET}"
 echo -e "\n"
 
 # View added platforms
 view_added_platforms() {
     echo -e "${CYAN}Added platforms:${RESET}"
-    grep -E '^#> ' "$SMART_CONFIG_FILE" | sed 's/^# //' | uniq || echo -e "${YELLOW}No platforms have been added yet.${RESET}"
+    grep -E '^#> ' "$SMART_CONFIG_FILE" | sed 's/^# //' | uniq || echo -e "${YELLOW}No platforms added yet.${RESET}"
 }
 
 # Check if platform is already added
@@ -396,7 +311,7 @@ is_platform_added() {
 }
 
 
-# Add domain rules to configuration file
+# Add domain rules to config file
 add_domain_rules() {
     local method="$1"  # nameserver or address
     local domains="$2" # domain list
@@ -415,10 +330,10 @@ add_domain_rules() {
             echo "address /$domain/$identifier" >>"$SMART_CONFIG_FILE"
         done <<<"$domains"
     fi
-    echo -e "${GREEN}Successfully added domains for $platform_name using $method method, with comment added.${RESET}"
+    echo -e "${GREEN}Successfully added $platform_name domains using $method method and added comment.${RESET}"
 }
 
-# Modify existing platform rules
+# Modify rules of existing platform
 modify_platform_rules() {
     local platform_name="$1"
     local domains="$2"
@@ -431,7 +346,7 @@ modify_platform_rules() {
     case $add_method in
     1)
         view_upstream_dns_groups
-        echo -e "${CYAN}Enter an existing DNS group name (e.g.: us):${RESET}"
+        echo -e "${CYAN}Enter existing DNS group name (e.g., us):${RESET}"
         read -r group_name
         if ! grep -q " -group $group_name" "$SMART_CONFIG_FILE"; then
             echo -e "${RED}Specified DNS group does not exist! Please create the group first.${RESET}"
@@ -443,10 +358,10 @@ modify_platform_rules() {
         ;;
     2)
         view_upstream_dns
-        echo -e "${CYAN}Enter DNS server IP address (e.g.: 11.22.33.44):${RESET}"
+        echo -e "${CYAN}Enter DNS server IP address (e.g., 11.22.33.44):${RESET}"
         read -r dns_ip
         if [[ ! $dns_ip =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo -e "${RED}Invalid IP address, please try again!${RESET}"
+            echo -e "${RED}Invalid IP address, please re-enter!${RESET}"
             return
         fi
         # Delete existing rules
@@ -454,13 +369,12 @@ modify_platform_rules() {
         add_domain_rules "address" "$domains" "$dns_ip" "$platform_name"
         ;;
     *)
-        echo -e "${RED}Invalid choice, please enter again!${RESET}"
+        echo -e "${RED}Invalid selection, please try again!${RESET}"
         ;;
     esac
 }
 
-
-# Service management function
+# Service management functions
 manage_service() {
     local service=$1
     local action=$2
@@ -484,22 +398,22 @@ check_service_status() {
     local is_active=$(systemctl is-active "$service" 2>/dev/null)
     local is_enabled=$(systemctl is-enabled "$service" 2>/dev/null)
 
-    echo -e "${CYAN}${service_name} service status:${RESET}$( [ "$is_active" == "active" ] && echo -e "${GREEN}running${RESET}" || echo -e "${RED}stopped${RESET}" )"
-    echo -e "${CYAN}${service_name} auto-start on boot:${RESET}$( [ "$is_enabled" == "enabled" ] && echo -e "${GREEN}enabled${RESET}" || echo -e "${RED}disabled${RESET}" )"
+    echo -e "${CYAN}${service_name} service status: ${RESET}$( [ "$is_active" == "active" ] && echo -e "${GREEN}Running${RESET}" || echo -e "${RED}Stopped${RESET}" )"
+    echo -e "${CYAN}${service_name} autostart: ${RESET}$( [ "$is_enabled" == "enabled" ] && echo -e "${GREEN}Enabled${RESET}" || echo -e "${RED}Disabled${RESET}" )"
 }
 
-# Restore service and enable auto-start on boot
+# Restore service and enable autostart
 restore_service() {
     local service=$1
-    manage_service "$service" start "Start"
-    manage_service "$service" enable "Enable auto-start on boot"
+    manage_service "$service" start "Starting"
+    manage_service "$service" enable "Setting to autostart"
 }
 
-# Stop service and disable auto-start on boot
+# Stop service and disable autostart
 stop_service() {
     local service=$1
-    manage_service "$service" stop "Stop"
-    manage_service "$service" disable "Disable auto-start on boot"
+    manage_service "$service" stop "Stopping"
+    manage_service "$service" disable "Disabling autostart"
 }
 
 # SmartDNS status check
@@ -521,13 +435,13 @@ check_sniproxy_status() {
 restore_system_dns() {
     stop_service "smartdns"
     restore_service "systemd-resolved"
-    echo -e "${GREEN}System DNS service has been started and enabled on boot.${RESET}"
+    echo -e "${GREEN}System DNS service has been started and set to autostart.${RESET}"
 }
 
 # Restore Sniproxy service
 restore_sniproxy() {
     restore_service "sniproxy"
-    echo -e "${GREEN}Sniproxy service has been started and enabled on boot.${RESET}"
+    echo -e "${GREEN}sniproxy service has been started and set to autostart.${RESET}"
 }
 
 # Restore SmartDNS service
@@ -535,25 +449,25 @@ start_smartdns() {
     stop_service "systemd-resolved"
     restore_service "smartdns"
     motify_resolv "127.0.0.1"
-    echo -e "${GREEN}SmartDNS service has been started and enabled on boot!${RESET}"
+    echo -e "${GREEN}SmartDNS service has been started and set to autostart!${RESET}"
 }
 
 # Stop system DNS service
 stop_system_dns() {
     stop_service "systemd-resolved"
-    echo -e "${GREEN}System DNS service has been stopped and auto-start disabled.${RESET}"
+    echo -e "${GREEN}System DNS service has been stopped and autostart disabled.${RESET}"
 }
 
 # Stop SmartDNS service
 stop_smartdns() {
     stop_service "smartdns"
-    echo -e "${GREEN}SmartDNS service has been stopped and auto-start disabled.${RESET}"
+    echo -e "${GREEN}SmartDNS service has been stopped and autostart disabled.${RESET}"
 }
 
 # Stop Sniproxy service
 stop_sniproxy() {
     stop_service "sniproxy"
-    echo -e "${GREEN}Sniproxy service has been stopped and auto-start disabled.${RESET}"
+    echo -e "${GREEN}sniproxy service has been stopped and autostart disabled.${RESET}"
 }
 
 # Modify /etc/resolv.conf file
@@ -561,7 +475,7 @@ motify_resolv() {
     local ip=$1
     echo "nameserver ${ip}" > /etc/resolv.conf 2>/dev/null
     if [[ $? -eq 0 ]]; then
-        echo -e "${GREEN}/etc/resolv.conf has been successfully updated to nameserver ${ip}${RESET}"
+        echo -e "${GREEN}/etc/resolv.conf successfully modified to nameserver ${ip}${RESET}"
     else
         echo -e "${RED}Failed to modify /etc/resolv.conf, please check file permissions.${RESET}"
     fi
@@ -573,36 +487,36 @@ view_streaming_platforms() {
     check_files
 
     if [[ ! -f "$STREAM_CONFIG_FILE" ]]; then
-        echo -e "${RED}[ERROR] StreamConfig.yaml file not found, please check path: $STREAM_CONFIG_FILE${RESET}"
+        echo -e "${RED}[Error] StreamConfig.yaml file not found, please check path: $STREAM_CONFIG_FILE${RESET}"
         return
     fi
 
     echo -e "${CYAN}Streaming platform list:${RESET}"
     yq '. | keys' "$STREAM_CONFIG_FILE" | jq -r '.[]' | nl || echo -e "${YELLOW}No available streaming platform configuration.${RESET}"
 
-    echo -e "${CYAN}Do you want to view secondary keys? (y/N): ${RESET}"
+    echo -e "${CYAN}View nested keys? (y/N): ${RESET}"
     read -r view_nested
     if [[ "$view_nested" =~ ^[Yy]$ ]]; then
-        echo -e "${CYAN}Enter primary streaming platform index:${RESET}"
+        echo -e "${CYAN}Enter the top-level streaming platform number:${RESET}"
         read -r platform_index
         platform_name=$(yq '. | keys' "$STREAM_CONFIG_FILE" | jq -r ".[$((platform_index - 1))]")
         if [[ -z $platform_name ]]; then
-            echo -e "${RED}Invalid index, please try again!${RESET}"
+            echo -e "${RED}Invalid number, please try again!${RESET}"
             return
         fi
-        echo -e "${CYAN}Secondary key contents:${RESET}"
+        echo -e "${CYAN}Nested keys:${RESET}"
         yq ".$platform_name | keys" "$STREAM_CONFIG_FILE" | jq -r '.[]' | nl
     fi
 }
 
-# View secondary streaming platforms of a specified primary platform
+# View nested streaming platforms for a specific top-level platform
 view_nested_streaming_platforms() {
     local platform_name="$1"
-    echo -e "${CYAN}Below is the list of secondary streaming platforms for $platform_name:${RESET}"
-    yq ".$platform_name | keys" "$STREAM_CONFIG_FILE" | jq -r '.[]' | nl || echo -e "${YELLOW}This platform has no configured secondary streaming platforms.${RESET}"
+    echo -e "${CYAN}Nested streaming platforms under $platform_name:${RESET}"
+    yq ".$platform_name | keys" "$STREAM_CONFIG_FILE" | jq -r '.[]' | nl || echo -e "${YELLOW}No nested streaming platforms configured for this platform.${RESET}"
 }
 
-# Download streaming list file
+# Download streaming config file
 download_Stream_Config_File() {
     log_CYAN "Downloading streaming configuration file..."
     wget -q "$REMOTE_STREAM_CONFIG_FILE_URL" -O "$STREAM_CONFIG_FILE"
@@ -614,16 +528,16 @@ download_Stream_Config_File() {
     fi
 }
 
-# File Existence Check
+# File existence check
 check_files() {
     if [[ ! -f "$SMART_CONFIG_FILE" ]]; then
-        log_RED "SmartDNS configuration file not found: $SMART_CONFIG_FILE"
-        log_CYAN "Please make sure SmartDNS is installed."
+        log_RED "SmartDNS config file not found: $SMART_CONFIG_FILE"
+        log_CYAN "Please ensure SmartDNS is installed."
         exit 1
     fi
 
     if [[ ! -f "$STREAM_CONFIG_FILE" ]]; then
-        log_RED "Streaming configuration file not found: $STREAM_CONFIG_FILE"
+        log_RED "Streaming config file not found: $STREAM_CONFIG_FILE"
         download_Stream_Config_File
     fi
 }
@@ -643,17 +557,17 @@ add_all_streaming_platforms() {
         return
     fi
 
-    echo -e "${CYAN}Please select the add method:${RESET}"
+    echo -e "${CYAN}Select add method:${RESET}"
     echo -e "${YELLOW}1. nameserver method${RESET}"
     echo -e "${YELLOW}2. address method${RESET}"
     read -r add_method
 
     case $add_method in
     1)
-        echo -e "${CYAN}Please enter an existing DNS group name (e.g., us):${RESET}"
+        echo -e "${CYAN}Enter existing DNS group name (e.g., us):${RESET}"
         read -r group_name
         if ! grep -q " -group $group_name" "$SMART_CONFIG_FILE"; then
-            echo -e "${RED}The specified DNS group does not exist! Please create the group first.${RESET}"
+            echo -e "${RED}Specified DNS group does not exist! Please create the group first.${RESET}"
             return
         fi
 
@@ -664,13 +578,13 @@ add_all_streaming_platforms() {
                 echo "nameserver /$domain/$group_name" >>"$SMART_CONFIG_FILE"
             done <<<"$domains"
         done
-        echo -e "${GREEN}All streaming platform domains have been added using the nameserver method.${RESET}"
+        echo -e "${GREEN}All streaming platform domains added using nameserver method.${RESET}"
         ;;
     2)
-        echo -e "${CYAN}Please enter the DNS server IP address (e.g., 11.22.33.44):${RESET}"
+        echo -e "${CYAN}Enter DNS server IP address (e.g., 11.22.33.44):${RESET}"
         read -r dns_ip
         if [[ ! $dns_ip =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo -e "${RED}Invalid IP address, please try again!${RESET}"
+            echo -e "${RED}Invalid IP address, please re-enter!${RESET}"
             return
         fi
 
@@ -681,42 +595,41 @@ add_all_streaming_platforms() {
                 echo "address /$domain/$dns_ip" >>"$SMART_CONFIG_FILE"
             done <<<"$domains"
         done
-        echo -e "${GREEN}All streaming platform domains have been added using the address method.${RESET}"
+        echo -e "${GREEN}All streaming platform domains added using address method.${RESET}"
         ;;
     *)
-        echo -e "${RED}Invalid choice, please try again!${RESET}"
+        echo -e "${RED}Invalid selection, please try again!${RESET}"
         ;;
     esac
 }
 
-# Add streaming platforms for one region
+#Add a regional streaming platform
 add_one_region_streaming_platforms() {
     check_files
 
     while true; do
-        echo -e "${BLUE}Do you want to add streaming platforms for one region? (y/N): ${RESET}"
+        echo -e "${BLUE}Do you want to add a regional streaming platform? (y/N): ${RESET}"
         read -r add_one_region
         if [[ "$add_one_region" =~ ^[Yy]$ ]]; then
-            echo -e "${CYAN}Please enter the index of the primary streaming platform:${RESET}"
-            yq '. | keys' "$STREAM_CONFIG_FILE" | jq -r '.[]' | nl || echo -e "${YELLOW}No available streaming platform configuration.${RESET}"
+            echo -e "${CYAN}Please enter the primary streaming platform index: ${RESET}"
+            yq '. | keys' "$STREAM_CONFIG_FILE" | jq -r '.[]' | nl || echo -e "${YELLOW}No available streaming platform configurations.${RESET}"
             read -r platform_index
 
             platform_name=$(yq '. | keys' "$STREAM_CONFIG_FILE" | jq -r ".[$((platform_index - 1))]")
             if [[ -z $platform_name ]]; then
-                echo -e "${RED}Invalid index, please try again!${RESET}"
+                echo -e "${RED}Invalid index, please re-enter!${RESET}"
                 return
             fi
 
             echo -e "${CYAN}You selected the primary platform: ${GREEN}$platform_name${RESET}"
 
-            # Check if secondary keys exist
             sub_platforms=$(yq ".$platform_name | keys" "$STREAM_CONFIG_FILE" | jq -r '.[]')
             if [[ -z $sub_platforms ]]; then
-                echo -e "${YELLOW}No secondary streaming platforms configured for this group.${RESET}"
+                echo -e "${YELLOW}This streaming group has no secondary platforms configured.${RESET}"
                 return
             fi
 
-            echo -e "${CYAN}Please select the add method:${RESET}"
+            echo -e "${CYAN}Please choose the addition method: ${RESET}"
             echo -e "${YELLOW}1. nameserver method${RESET}"
             echo -e "${YELLOW}2. address method${RESET}"
             read -r add_method
@@ -725,7 +638,7 @@ add_one_region_streaming_platforms() {
             1)
                 view_upstream_dns_groups
 
-                echo -e "${CYAN}Please enter an existing DNS group name (e.g., us):${RESET}"
+                echo -e "${CYAN}Please enter an existing DNS group name (e.g., us): ${RESET}"
                 read -r group_name
                 if ! grep -q " -group $group_name" "$SMART_CONFIG_FILE"; then
                     echo -e "${RED}The specified DNS group does not exist! Please create the group first.${RESET}"
@@ -735,35 +648,35 @@ add_one_region_streaming_platforms() {
                 for nested_name in $sub_platforms; do
                     domains=$(yq ".$platform_name.$nested_name[]" "$STREAM_CONFIG_FILE" | tr -d '"')
                     if [[ -z $domains ]]; then
-                        echo -e "${YELLOW}Skipping secondary platform with no domain configuration: $nested_name${RESET}"
+                        echo -e "${YELLOW}Skipping secondary platform with no domains: $nested_name${RESET}"
                         continue
                     fi
                     echo -e "${CYAN}Adding domain rules for $nested_name...${RESET}"
                     add_domain_rules "nameserver" "$domains" "$group_name" "$nested_name"
                 done
-                echo -e "${GREEN}Nameserver method added for all secondary streaming platforms under $platform_name.${RESET}"
+                echo -e "${GREEN}All secondary platforms under $platform_name have been added using the nameserver method.${RESET}"
                 ;;
             2)
-                echo -e "${CYAN}Please enter the DNS server IP address (e.g., 11.22.33.44):${RESET}"
+                echo -e "${CYAN}Please enter the DNS server IP address (e.g., 11.22.33.44): ${RESET}"
                 read -r dns_ip
                 if [[ ! $dns_ip =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-                    echo -e "${RED}Invalid IP address, please try again!${RESET}"
+                    echo -e "${RED}Invalid IP address, please re-enter!${RESET}"
                     return
                 fi
 
                 for nested_name in $sub_platforms; do
                     domains=$(yq ".$platform_name.$nested_name[]" "$STREAM_CONFIG_FILE" | tr -d '"')
                     if [[ -z $domains ]]; then
-                        echo -e "${YELLOW}Skipping secondary platform with no domain configuration: $nested_name${RESET}"
+                        echo -e "${YELLOW}Skipping secondary platform with no domains: $nested_name${RESET}"
                         continue
                     fi
                     echo -e "${CYAN}Adding domain rules for $nested_name...${RESET}"
                     add_domain_rules "address" "$domains" "$dns_ip" "$nested_name"
                 done
-                echo -e "${GREEN}Address method added for all secondary streaming platforms under $platform_name.${RESET}"
+                echo -e "${GREEN}All secondary platforms under $platform_name have been added using the address method.${RESET}"
                 ;;
             *)
-                echo -e "${RED}Invalid choice, please try again!${RESET}"
+                echo -e "${RED}Invalid choice, please re-enter!${RESET}"
                 ;;
             esac
         else
@@ -772,32 +685,31 @@ add_one_region_streaming_platforms() {
     done
 }
 
-# Add a streaming platform to SmartDNS
 add_streaming_platform() {
     check_files
     while true; do
         echo -e "${BLUE}Do you want to add a streaming platform? (y/N): ${RESET}"
         read -r add_dns
         if [[ "$add_dns" =~ ^[Yy]$ ]]; then
-            echo -e "${CYAN}Please enter the index of the primary streaming platform:${RESET}"
-            yq '. | keys' "$STREAM_CONFIG_FILE" | jq -r '.[]' | nl || echo -e "${YELLOW}No available streaming platform configuration.${RESET}"
+            echo -e "${CYAN}Please enter the primary streaming platform index: ${RESET}"
+            yq '. | keys' "$STREAM_CONFIG_FILE" | jq -r '.[]' | nl || echo -e "${YELLOW}No available streaming platform configurations.${RESET}"
             read -r platform_index
 
             platform_name=$(yq '. | keys' "$STREAM_CONFIG_FILE" | jq -r ".[$((platform_index - 1))]")
             if [[ -z $platform_name ]]; then
-                echo -e "${RED}Invalid index, please try again!${RESET}"
+                echo -e "${RED}Invalid index, please re-enter!${RESET}"
                 return
             fi
 
             echo -e "${CYAN}You selected the primary platform: ${GREEN}$platform_name${RESET}"
 
-            echo -e "${CYAN}Please enter the index of the secondary streaming platform:${RESET}"
+            echo -e "${CYAN}Please enter the secondary streaming platform index: ${RESET}"
             view_nested_streaming_platforms "$platform_name"
             read -r nested_index
 
             nested_name=$(yq ".$platform_name | keys" "$STREAM_CONFIG_FILE" | jq -r ".[$((nested_index - 1))]")
             if [[ -z $nested_name ]]; then
-                echo -e "${RED}Invalid index, please try again!${RESET}"
+                echo -e "${RED}Invalid index, please re-enter!${RESET}"
                 return
             fi
 
@@ -805,7 +717,7 @@ add_streaming_platform() {
             domains=$(yq ".$platform_name.$nested_name[]" "$STREAM_CONFIG_FILE" | tr -d '"')
 
             if [[ -z $domains ]]; then
-                echo -e "${YELLOW}No domain configuration found for this streaming platform.${RESET}"
+                echo -e "${YELLOW}This streaming platform has no domains configured.${RESET}"
                 return
             fi
 
@@ -815,10 +727,10 @@ add_streaming_platform() {
                 if [[ "$modify_choice" =~ ^[Yy]$ ]]; then
                     modify_platform_rules "$nested_name" "$domains"
                 else
-                    echo -e "${CYAN}Operation cancelled.${RESET}"
+                    echo -e "${CYAN}Operation canceled.${RESET}"
                 fi
             else
-                echo -e "${CYAN}Please select an add method:${RESET}"
+                echo -e "${CYAN}Please choose the addition method: ${RESET}"
                 echo -e "${YELLOW}1. nameserver method${RESET}"
                 echo -e "${YELLOW}2. address method${RESET}"
                 read -r add_method
@@ -827,7 +739,7 @@ add_streaming_platform() {
                 1)
                     view_upstream_dns_groups
 
-                    echo -e "${CYAN}Please enter an existing DNS group name (e.g., us):${RESET}"
+                    echo -e "${CYAN}Please enter an existing DNS group name (e.g., us): ${RESET}"
                     read -r group_name
                     if ! grep -q " -group $group_name" "$SMART_CONFIG_FILE"; then
                         echo -e "${RED}The specified DNS group does not exist! Please create the group first.${RESET}"
@@ -838,16 +750,16 @@ add_streaming_platform() {
                 2)
                     view_upstream_dns
 
-                    echo -e "${CYAN}Please enter the DNS server IP address (e.g., 11.22.33.44):${RESET}"
+                    echo -e "${CYAN}Please enter the DNS server IP address (e.g., 11.22.33.44): ${RESET}"
                     read -r dns_ip
                     if [[ ! $dns_ip =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-                        echo -e "${RED}Invalid IP address, please try again!${RESET}"
+                        echo -e "${RED}Invalid IP address, please re-enter!${RESET}"
                         return
                     fi
                     add_domain_rules "address" "$domains" "$dns_ip" "$nested_name"
                     ;;
                 *)
-                    echo -e "${RED}Invalid choice, please try again!${RESET}"
+                    echo -e "${RED}Invalid choice, please re-enter!${RESET}"
                     ;;
                 esac
             fi
@@ -857,21 +769,20 @@ add_streaming_platform() {
     done
 }
 
-# Add domain rules to the table block in /etc/sniproxy.conf
 add_domain_to_sniproxy_table() {
     local domain="$1"
 
-    # Check if the configuration file exists
+    # Check if the config file exists
     if [[ ! -f "$SNIPROXY_CONFIG" ]]; then
-        echo -e "${RED}[Error] sniproxy configuration file not found: $SNIPROXY_CONFIG${RESET}"
+        echo -e "${RED}[Error] sniproxy config file not found: $SNIPROXY_CONFIG${RESET}"
         return 1
     fi
 
     # Check if the table block exists
     local table_start=$(grep -n "^table {" "$SNIPROXY_CONFIG" | cut -d: -f1)
 
-    if [[ -z $table_start  ]]; then
-        echo -e "${RED}[Error] table block not found in sniproxy configuration file!${RESET}"
+    if [[ -z $table_start ]]; then
+        echo -e "${RED}[Error] Table block not found in sniproxy config file!${RESET}"
         return 1
     fi
 
@@ -881,17 +792,16 @@ add_domain_to_sniproxy_table() {
         return
     fi
 
-    # Insert domain after the last entry in the table block
+    # Insert domain after the table block start
     sed -i "${table_start}a \    .*${domain//./\\.} *" "$SNIPROXY_CONFIG"
-    echo -e "${GREEN}Domain added to table block: $domain${RESET}"
+    echo -e "${GREEN}Added domain: $domain to the table block${RESET}"
 }
 
-# Add domain rules to sniproxy
 add_streaming_to_sniproxy() {
     local platform_name="$1"
     local sub_platform_name="$2"
 
-    # If a secondary streaming platform is provided
+    # If a secondary platform is provided
     if [[ -n "$sub_platform_name" ]]; then
         echo -e "${CYAN}Processing platform: $platform_name -> $sub_platform_name${RESET}"
         local domains=$(yq ".$platform_name.$sub_platform_name[]" "$STREAM_CONFIG_FILE" 2>/dev/null | tr -d '"')
@@ -900,12 +810,12 @@ add_streaming_to_sniproxy() {
             return
         fi
 
-        # Iterate through domains and add them to the table block
+        # Add each domain to the table block
         for domain in $domains; do
             add_domain_to_sniproxy_table "$domain"
         done
 
-    # If only the primary streaming platform is provided
+    # If only a primary platform is provided
     elif [[ -n "$platform_name" ]]; then
         echo -e "${CYAN}Processing primary platform: $platform_name${RESET}"
         local sub_platforms=$(yq ".$platform_name | keys" "$STREAM_CONFIG_FILE" 2>/dev/null | jq -r '.[]')
@@ -924,19 +834,19 @@ add_streaming_to_sniproxy() {
     fi
 }
 
-# User selects to add streaming domains to sniproxy
+# User selects adding streaming domains to sniproxy
 add_streaming_domains_to_sniproxy() {
-    
+
     check_files
 
-    echo -e "${CYAN}Please choose an action:${RESET}"
+    echo -e "${CYAN}Please select an operation:${RESET}"
     echo -e "${YELLOW}1.${RESET} Add a single streaming platform"
-    echo -e "${YELLOW}2.${RESET} Add all streaming platforms within a region"
+    echo -e "${YELLOW}2.${RESET} Add all streaming platforms in a region"
     read -r choice
 
     case $choice in
     1)
-        echo -e "${CYAN}Please enter the index of the primary streaming platform:${RESET}"
+        echo -e "${CYAN}Enter the primary streaming platform index:${RESET}"
         yq '. | keys' "$STREAM_CONFIG_FILE" | jq -r '.[]' | nl
         read -r platform_index
 
@@ -946,8 +856,8 @@ add_streaming_domains_to_sniproxy() {
             return
         fi
 
-        echo -e "${CYAN}You selected the primary platform: ${GREEN}$platform_name${RESET}"
-        echo -e "${CYAN}Please enter the index of the secondary streaming platform:${RESET}"
+        echo -e "${CYAN}You selected primary platform: ${GREEN}$platform_name${RESET}"
+        echo -e "${CYAN}Enter the secondary streaming platform index:${RESET}"
         yq ".$platform_name | keys" "$STREAM_CONFIG_FILE" | jq -r '.[]' | nl
         read -r sub_platform_index
 
@@ -960,7 +870,7 @@ add_streaming_domains_to_sniproxy() {
         add_streaming_to_sniproxy "$platform_name" "$sub_platform_name"
         ;;
     2)
-        echo -e "${CYAN}Please enter the index of the primary streaming platform:${RESET}"
+        echo -e "${CYAN}Enter the primary streaming platform index:${RESET}"
         yq '. | keys' "$STREAM_CONFIG_FILE" | jq -r '.[]' | nl
         read -r platform_index
 
@@ -978,102 +888,104 @@ add_streaming_domains_to_sniproxy() {
     esac
 }
 
+
 # Check if ufw is installed and enable it
 check_and_enable_ufw() {
     if ! command -v ufw &>/dev/null; then
-        log_YELLOW "UFW firewall not detected. Do you want to install UFW? (y/N):"
+        log_YELLOW "UFW firewall not detected. Install UFW? (y/N):"
         read -r install_ufw
         if [[ "$install_ufw" =~ ^[Yy]$ ]]; then
             sudo apt-get update
             sudo apt-get install -y ufw
-            log_YELLOW "Make sure SSH port 22 is open, otherwise remote access may fail! Opening port 22..."
+            log_YELLOW "Ensure SSH port 22 is open to avoid losing remote access! Opening port 22..."
             sudo ufw allow 22
             log_GREEN "Port 22 opened successfully."
         else
-            log_RED "UFW is not installed, cannot continue."
+            log_RED "UFW not installed, cannot proceed."
             exit 1
         fi
     fi
 
     if ! sudo ufw status | grep -q "active"; then
-        log_YELLOW "UFW is not active. Do you want to enable UFW? (y/N):"
+        log_YELLOW "UFW is not active. Enable UFW? (y/N):"
         read -r start_ufw
         if [[ "$start_ufw" =~ ^[Yy]$ ]]; then
             sudo ufw enable
             log_GREEN "UFW started successfully!"
-            log_YELLOW "Make sure SSH port 22 is open, otherwise remote access may fail! Opening port 22..."
+            log_YELLOW "Ensure SSH port 22 is open to avoid losing remote access! Opening port 22..."
             sudo ufw allow 22
             log_GREEN "Port 22 opened successfully."
         else
-            log_RED "UFW is not active, cannot continue."
+            log_RED "UFW not enabled, cannot proceed."
             exit 1
         fi
     fi
 }
 
-# Open ports 80/443/53 for a specified IP
+# Unlock specified IP for ports 80/443/53
 unlock_ports() {
-    log_CYAN "Please enter the IP address of the unlocked machine:"
+    log_CYAN "Enter the IP address to unlock:"
     read -r unlocked_ip
 
-    # Verify if the IP format is correct
+    # Validate IP format
     if [[ ! "$unlocked_ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
         log_RED "Invalid IP address format!"
         return
     fi
-    # Open ports 80/443/53
+
+    # Allow ports 80/443/53 for both TCP & UDP
     sudo ufw allow from "$unlocked_ip" to any port 80 proto tcp
     sudo ufw allow from "$unlocked_ip" to any port 80 proto udp
     sudo ufw allow from "$unlocked_ip" to any port 443 proto tcp
     sudo ufw allow from "$unlocked_ip" to any port 443 proto udp
     sudo ufw allow from "$unlocked_ip" to any port 53 proto udp
 
-    log_GREEN "Successfully opened the following ports for $unlocked_ip: 80, 443, 53 (tcp & udp)"
+    log_GREEN "Successfully opened ports 80, 443, 53 (TCP & UDP) for $unlocked_ip"
 }
 
 # One-click open a custom port
 open_custom_port() {
-    log_CYAN "Please enter the port number to open:"
+    log_CYAN "Enter the port number to open:"
     read -r custom_port
 
-    # Verify if the port number is valid
+    # Validate port number
     if [[ ! "$custom_port" =~ ^[0-9]+$ ]] || ((custom_port < 1 || custom_port > 65535)); then
-        log_RED "Invalid port number! Please enter a number between 1-65535."
+        log_RED "Invalid port number! Enter a number between 1-65535."
         return
     fi
 
     sudo ufw allow "$custom_port"/tcp
     sudo ufw allow "$custom_port"/udp
-    log_GREEN "Successfully opened port $custom_port (TCP and UDP)."
-    log_GREEN "The ufw command to open ports is as follows:"
+    log_GREEN "Successfully opened port $custom_port (TCP & UDP)."
+    log_GREEN "Example ufw command to open port for specific IP:"
     log_YELLOW "sudo ufw allow from xx.xx.xx.xx to any port 53 proto udp"
 }
 
-# Function to change global DNS
+# Set global DNS function
 set_global_dns() {
     echo -e "${CYAN}Changing global DNS to 8.8.8.8...${RESET}"
 
     # Check if /etc/resolv.conf is writable
     if [[ -w /etc/resolv.conf ]]; then
-        # Backup the original resolv.conf
+        # Backup original resolv.conf
         cp /etc/resolv.conf /etc/resolv.conf.bak
         rm /etc/resolv.conf
         echo "nameserver 8.8.8.8" > /etc/resolv.conf
 
-        # Verify if writing was successful
+        # Verify change
         if grep -q "8.8.8.8" /etc/resolv.conf; then
             echo -e "${GREEN}Global DNS successfully changed to 8.8.8.8${RESET}"
         else
-            echo -e "${RED}Change failed, please check /etc/resolv.conf permissions.${RESET}"
+            echo -e "${RED}Failed to change DNS. Check /etc/resolv.conf permissions.${RESET}"
         fi
     else
-        echo -e "${RED}/etc/resolv.conf is not writable, please check permissions or manually change DNS.${RESET}"
+        echo -e "${RED}/etc/resolv.conf is not writable. Check permissions or change DNS manually.${RESET}"
     fi
 }
 
 # Main menu
 while true; do
-    echo -e "${GREEN}-----------Please select an operation to execute-----------${RESET}"
+    echo -e "${GREEN}-----------Please select an action to perform-----------${RESET}"
     echo -e "${YELLOW}-----------Unlocked Machine--------------${RESET}"
     echo -e "${CYAN}1.${RESET} ${GREEN} Install SmartDNS${RESET}"
     echo -e "${CYAN}2.${RESET} ${GREEN} Reconfigure SmartDNS${RESET}"
@@ -1087,29 +999,29 @@ while true; do
     echo -e "${YELLOW}-----------sniproxy Related (Unlocked Machine)--------------${RESET}"
     echo -e "${CYAN}11.${RESET} ${GREEN} Install and start sniproxy${RESET}"
     echo -e "${CYAN}12.${RESET} ${GREEN} Add streaming platform to sniproxy${RESET}"
-    echo -e "${CYAN}13.${RESET} ${GREEN} Start/Restart sniproxy service and enable on boot${RESET}"
+    echo -e "${CYAN}13.${RESET} ${GREEN} Start/Restart sniproxy and enable on boot${RESET}"
     echo -e "${CYAN}14.${RESET} ${GREEN} Stop sniproxy and disable on boot${RESET}"
-    echo -e "${CYAN}15.${RESET} ${GREEN} One-click open ports 80/443/53 for unlocked machine${RESET}"
-    echo -e "${CYAN}16.${RESET} ${GREEN} One-click open specified firewall (ufw) ports${RESET}"
+    echo -e "${CYAN}15.${RESET} ${GREEN} One-click unlock ports 80/443/53 for the unlocked machine${RESET}"
+    echo -e "${CYAN}16.${RESET} ${GREEN} One-click open custom firewall (ufw) port${RESET}"
     echo -e "${YELLOW}-----------SmartDNS Related (Unlocked Machine)--------------${RESET}"
-    echo -e "${CYAN}21.${RESET} ${GREEN} Start/Restart SmartDNS service and enable on boot${RESET}"
+    echo -e "${CYAN}21.${RESET} ${GREEN} Start/Restart SmartDNS and enable on boot${RESET}"
     echo -e "${CYAN}22.${RESET} ${GREEN} Stop SmartDNS and disable on boot${RESET}"
-    echo -e "${CYAN}23.${RESET} ${GREEN} Start/Restart system DNS and enable on boot${RESET}"
-    echo -e "${CYAN}24.${RESET} ${GREEN} Stop system DNS and disable on boot${RESET}"
+    echo -e "${CYAN}23.${RESET} ${GREEN} Start/Restart System DNS and enable on boot${RESET}"
+    echo -e "${CYAN}24.${RESET} ${GREEN} Stop System DNS and disable on boot${RESET}"
     echo -e "${YELLOW}-----------DNS Emergency--------------${RESET}"
     echo -e "${CYAN}31.${RESET} ${GREEN} Change global DNS to 8.8.8.8${RESET}"
     echo -e "${YELLOW}-----------Script Related--------------${RESET}"
-    echo -e "${CYAN}t.${RESET} ${GREEN} Streaming platform check${RESET}"
-    echo -e "${CYAN}u.${RESET} ${GREEN} Check script updates${RESET}"
-    echo -e "${CYAN}d.${RESET} ${GREEN} Download latest streaming platform list file${RESET}"
+    echo -e "${CYAN}t.${RESET} ${GREEN} Streaming check${RESET}"
+    echo -e "${CYAN}u.${RESET} ${GREEN} Check script update${RESET}"
+    echo -e "${CYAN}d.${RESET} ${GREEN} Download latest streaming list file${RESET}"
     echo -e "${CYAN}q.${RESET} ${RED} Exit script${RESET}"
-    echo -e "${YELLOW}---Service status (SmartDNS and system DNS do not run simultaneously)---${RESET}"
+    echo -e "${YELLOW}---Service Status (SmartDNS and System DNS do not run simultaneously)---${RESET}"
 
     check_smartdns_status
     check_system_dns_status
     check_sniproxy_status
 
-    echo -e "\n${YELLOW}Please choose:${RESET}"
+    echo -e "\n${YELLOW}Please select: ${RESET}"
     read -r choice
 
     case $choice in
@@ -1201,7 +1113,7 @@ while true; do
         exit 0
         ;;
     *)
-        echo -e "${RED}Invalid choice, please enter again!${RESET}"
+        echo -e "${RED}Invalid selection, please try again!${RESET}"
         ;;
     esac
 done
